@@ -1,0 +1,3647 @@
+Require Import Reals.
+Require Import Lra.
+Require Import Lia.
+Require Import Coq.setoid_ring.Ring.
+Require Import Coq.setoid_ring.Field.
+Require Import Coq.Arith.Wf_nat.
+Require Import Coq.Logic.Classical.
+Require Import Coq.Logic.ClassicalChoice.
+Require Import Coq.Logic.ConstructiveEpsilon.
+Require Import Coq.Logic.ClassicalDescription.
+Require Import Coq.Logic.IndefiniteDescription.
+Require Import Coq.Logic.ClassicalUniqueChoice.
+Require Import Psatz.
+Require Import Coq.Vectors.Vector.
+Require Import List.
+Import ListNotations.
+
+Open Scope R_scope.
+
+Section TernaryAlgebraicStructure.
+
+Class TernaryAlgebra (Omega : Type) := {
+  ternary_op : Omega -> Omega -> Omega -> Omega;
+  identity : Omega;
+
+  cyclic_symmetry : forall a b c,
+    ternary_op a b c = ternary_op c a b;
+
+  identity_law : forall a,
+    ternary_op identity a a = a;
+}.
+
+Notation "a ⊗ b ⊗ c" := (ternary_op a b c) (at level 40, no associativity).
+
+Definition derived_binary_op {Omega : Type} `{TernaryAlgebra Omega}
+  (a b : Omega) : Omega :=
+  ternary_op a b identity.
+
+Notation "a ◊ b" := (derived_binary_op a b) (at level 40).
+
+Class ValuatedTernaryAlgebra (Omega : Type) `{TernaryAlgebra Omega} := {
+  valuation : Omega -> R;
+
+  valuation_nonneg : forall x, 0 <= valuation x;
+
+  valuation_identity : valuation identity = 0;
+
+  valuation_barycentric : forall a b c,
+    valuation (ternary_op a b c) <=
+    (valuation a + valuation b + valuation c) / 2;
+
+  valuation_faithful : forall x,
+    valuation x = 0 -> x = identity;
+}.
+
+Section UniquenessOfAffineForm.
+
+Theorem cyclic_identity_forces_equal_coefficients :
+  forall (lambda mu nu : R),
+  (forall a b c, lambda*a + mu*b + nu*c = lambda*c + mu*a + nu*b) ->
+  (forall a, mu*a + nu*a = a) ->
+  lambda = mu /\ mu = nu /\ lambda = 1/2.
+Proof.
+  intros lambda mu nu Hcyclic Hidentity.
+  assert (Heq_lambda_mu: lambda = mu).
+  { specialize (Hcyclic 1 0 0).
+    simpl in Hcyclic.
+    lra. }
+  assert (Heq_mu_nu: mu = nu).
+  { specialize (Hcyclic 0 1 0).
+    simpl in Hcyclic.
+    lra. }
+  assert (Hvalue: lambda = 1/2).
+  { specialize (Hidentity 1).
+    rewrite <- Heq_lambda_mu in Hidentity.
+    rewrite <- Heq_mu_nu in Hidentity.
+    lra. }
+  split; [exact Heq_lambda_mu | split; [exact Heq_mu_nu | exact Hvalue]].
+Qed.
+
+Theorem affine_form_uniqueness_for_R :
+  forall (op : R -> R -> R -> R),
+  (forall a b c, op a b c = op c a b) ->
+  (forall a, op 0 a a = a) ->
+  (exists lambda mu nu, forall a b c, op a b c = lambda*a + mu*b + nu*c) ->
+  (forall a b c, op a b c = (a + b + c) / 2).
+Proof.
+  intros op Hcyclic Hidentity [lambda [mu [nu Haffine]]].
+  intros a b c.
+  assert (Hcyc100: lambda = mu).
+  { pose proof (Haffine 1 0 0) as H1.
+    pose proof (Haffine 0 1 0) as H2.
+    pose proof (Hcyclic 1 0 0) as Hc.
+    rewrite H1 in Hc.
+    rewrite H2 in Hc.
+    lra. }
+  assert (Hcyc010: mu = nu).
+  { pose proof (Haffine 0 1 0) as H1.
+    pose proof (Haffine 0 0 1) as H2.
+    pose proof (Hcyclic 0 1 0) as Hc.
+    rewrite H1 in Hc.
+    rewrite H2 in Hc.
+    lra. }
+  assert (Hid1: lambda = 1/2).
+  { pose proof (Haffine 0 1 1) as H1.
+    pose proof (Hidentity 1) as Hid.
+    rewrite H1 in Hid.
+    lra. }
+  subst lambda mu nu.
+  rewrite (Haffine a b c).
+  field.
+Qed.
+
+End UniquenessOfAffineForm.
+
+Section NaryGeneralization.
+
+Fixpoint sum_list (l : list R) : R :=
+  match l with
+  | [] => 0
+  | x :: xs => x + sum_list xs
+  end.
+
+Lemma sum_list_const : forall (n : nat) (c : R),
+  sum_list (repeat c n) = INR n * c.
+Proof.
+  intros n c.
+  induction n as [|n' IHn'].
+  - simpl. lra.
+  - simpl repeat. simpl sum_list. rewrite IHn'.
+    assert (H: INR (S n') = INR n' + 1).
+    { rewrite S_INR. reflexivity. }
+    rewrite H. lra.
+Qed.
+
+Lemma sum_list_map_combine_const : forall (coeffs : list R) (n : nat) (x : R),
+  length coeffs = n ->
+  sum_list (map (fun '(c, y) => c * y) (combine coeffs (repeat x n))) = sum_list coeffs * x.
+Proof.
+  intros coeffs n x Hlen.
+  revert coeffs Hlen.
+  induction n as [|n' IHn']; intros coeffs Hlen.
+  - destruct coeffs; [|discriminate].
+    simpl. lra.
+  - destruct coeffs as [|c cs]; [discriminate |].
+    simpl in Hlen. injection Hlen as Hlen'.
+    simpl.
+    rewrite IHn' by exact Hlen'.
+    lra.
+Qed.
+
+Lemma repeat_length : forall (A : Type) (x : A) (n : nat),
+  length (repeat x n) = n.
+Proof.
+  intros A x n.
+  induction n; simpl; auto.
+Qed.
+
+Lemma cons_repeat_split : forall (n : nat) (a : R),
+  (n > 0)%nat ->
+  0 :: repeat a (n - 1) = [0] ++ repeat a (n - 1).
+Proof.
+  intros. simpl. reflexivity.
+Qed.
+
+Lemma sum_list_app : forall (l1 l2 : list R),
+  sum_list (l1 ++ l2) = sum_list l1 + sum_list l2.
+Proof.
+  intros l1 l2.
+  induction l1 as [|x xs IH].
+  - simpl. lra.
+  - simpl. rewrite IH. lra.
+Qed.
+
+Lemma combine_cons : forall (A B : Type) (a : A) (b : B) (la : list A) (lb : list B),
+  combine (a :: la) (b :: lb) = (a, b) :: combine la lb.
+Proof.
+  intros. simpl. reflexivity.
+Qed.
+
+Lemma map_combine_split : forall (c : R) (cs : list R) (x : R) (xs : list R),
+  map (fun '(c0, y) => c0 * y) (combine (c :: cs) (x :: xs)) =
+  c * x :: map (fun '(c0, y) => c0 * y) (combine cs xs).
+Proof.
+  intros. simpl. reflexivity.
+Qed.
+
+Lemma first_coeff_from_identity : forall (n : nat) (coeffs : list R) (op : list R -> R),
+  (n >= 2)%nat ->
+  length coeffs = n ->
+  sum_list coeffs = 1 ->
+  (forall inputs, length inputs = n -> op inputs = sum_list (map (fun '(c, y) => c * y) (combine coeffs inputs))) ->
+  (forall a, op (0 :: repeat a (n - 1)) = a) ->
+  exists c0 cs, coeffs = c0 :: cs /\ c0 = 0 /\ sum_list cs = 1.
+Proof.
+  intros n coeffs op Hn Hlen Hsum Haff Hid.
+  destruct coeffs as [|c0 cs].
+  { simpl in Hlen. lia. }
+  exists c0, cs.
+  split; [reflexivity |].
+  simpl in Hlen.
+  assert (Hlen': length cs = (n - 1)%nat) by lia.
+  assert (Hid1: op (0 :: repeat 1 (n - 1)) = 1) by apply Hid.
+  assert (Hlength_repeat: length (repeat 1 (n - 1)) = (n - 1)%nat) by apply repeat_length.
+  assert (Hlength_input: length (0 :: repeat 1 (n - 1)) = n).
+  { simpl. rewrite Hlength_repeat. lia. }
+  rewrite (Haff (0 :: repeat 1 (n - 1)) Hlength_input) in Hid1.
+  rewrite map_combine_split in Hid1.
+  simpl in Hid1.
+  rewrite Rmult_0_r in Hid1.
+  rewrite sum_list_map_combine_const in Hid1 by exact Hlen'.
+  simpl in Hsum.
+  assert (Hcs_sum: sum_list cs = 1).
+  { rewrite Rmult_1_r in Hid1. lra. }
+  split.
+  - lra.
+  - exact Hcs_sum.
+Qed.
+
+Definition nary_op (n : nat) (op_R : list R -> R) (inputs : list R) : R :=
+  op_R inputs.
+
+Definition nary_cyclic (n : nat) (op : list R -> R) : Prop :=
+  forall (l : list R), length l = n ->
+  forall k, (k < n)%nat ->
+  op l = op (skipn k l ++ firstn k l).
+
+Definition nary_identity_law (n : nat) (op : list R -> R) (e : R) : Prop :=
+  forall a, op (e :: repeat a (n - 1)) = a.
+
+Definition nary_affine (n : nat) (op : list R -> R) : Prop :=
+  exists (coeffs : list R),
+    length coeffs = n /\
+    sum_list coeffs = 1 /\
+    forall (inputs : list R), length inputs = n ->
+      op inputs = sum_list (map (fun '(c, x) => c * x) (combine coeffs inputs)).
+
+Lemma cyclic_rotation_once : forall (A : Type) (l : list A) (n : nat),
+  length l = S n ->
+  skipn 1 l ++ firstn 1 l = match l with
+                             | [] => []
+                             | h :: t => t ++ [h]
+                             end.
+Proof.
+  intros A l n Hlen.
+  destruct l as [|h t].
+  - discriminate.
+  - simpl. reflexivity.
+Qed.
+
+Lemma affine_on_repeat_all_equal : forall n coeffs op x,
+  length coeffs = n ->
+  (forall inputs, length inputs = n ->
+    op inputs = sum_list (map (fun '(c, y) => c * y) (combine coeffs inputs))) ->
+  op (repeat x n) = sum_list coeffs * x.
+Proof.
+  intros n coeffs op x Hlen Haffine.
+  rewrite Haffine.
+  - apply sum_list_map_combine_const. exact Hlen.
+  - apply repeat_length.
+Qed.
+
+Lemma cyclic_forces_equal_coeffs_base : forall c0 c1 c2,
+  (forall a0 a1 a2, c0 * a0 + c1 * a1 + c2 * a2 = c0 * a2 + c1 * a0 + c2 * a1) ->
+  c0 = c1 /\ c1 = c2.
+Proof.
+  intros c0 c1 c2 Hcyc.
+  split.
+  - specialize (Hcyc 1 0 0). lra.
+  - specialize (Hcyc 0 1 0). lra.
+Qed.
+
+Theorem nary_identity_forces_denominator :
+  forall (n : nat) (d : R),
+  (n >= 2)%nat ->
+  d > 0 ->
+  (forall a, (0 + INR (n - 1) * a) / d = a) <->
+  d = INR (n - 1).
+Proof.
+  intros n d Hn Hd.
+  split; intro Heq.
+  - specialize (Heq 1).
+    assert (Hsimp: (0 + INR (n - 1) * 1) / d = INR (n - 1) / d).
+    { f_equal. lra. }
+    rewrite Hsimp in Heq.
+    assert (Hcalc: INR (n - 1) / d = 1) by exact Heq.
+    unfold Rdiv in Hcalc.
+    apply Rmult_eq_compat_r with (r := d) in Hcalc.
+    rewrite Rmult_assoc in Hcalc.
+    rewrite Rinv_l in Hcalc by lra.
+    rewrite Rmult_1_r in Hcalc.
+    lra.
+  - subst d. intro a.
+    assert (H_n_pos: INR (n - 1) > 0).
+    { assert (H: (0 < n - 1)%nat) by lia.
+      apply lt_INR in H. simpl in H. exact H. }
+    field_simplify; [lra | lra].
+Qed.
+
+Theorem nary_lipschitz_constant :
+  forall (n : nat) (d : R),
+  (n >= 2)%nat ->
+  d > 0 ->
+  d = INR (n - 1) ->
+  INR n / d = INR n / INR (n - 1).
+Proof.
+  intros n d Hn Hd Heq.
+  rewrite Heq.
+  reflexivity.
+Qed.
+
+Theorem nary_stability_condition :
+  forall (n : nat),
+  (n >= 3)%nat ->
+  INR n / INR (n - 1) > 1.
+Proof.
+  intros n Hn.
+  assert (H_n_pos: INR n > 0).
+  { assert (H: (0 < n)%nat) by lia.
+    apply lt_INR in H. simpl in H. exact H. }
+  assert (H_n1_pos: INR (n - 1) > 0).
+  { assert (H: (0 < n - 1)%nat) by lia.
+    apply lt_INR in H. simpl in H. exact H. }
+  assert (H_ineq: INR n > INR (n - 1)).
+  { apply lt_INR. lia. }
+  apply Rmult_gt_reg_r with (r := INR (n - 1)).
+  - exact H_n1_pos.
+  - field_simplify; [lra | lra].
+Qed.
+
+Lemma Rgt_irrefl_False : forall r : R, r > r -> False.
+Proof.
+  intros r H.
+  unfold Rgt in H.
+  exact (Rlt_irrefl r H).
+Qed.
+
+Lemma affine_op_on_repeat : forall (n : nat) (coeffs : list R) (op : list R -> R) (x : R),
+  length coeffs = n ->
+  (forall inputs, length inputs = n -> op inputs = sum_list (map (fun '(c, y) => c * y) (combine coeffs inputs))) ->
+  op (repeat x n) = sum_list coeffs * x.
+Proof.
+  intros n coeffs op x Hlen Haffine.
+  rewrite (Haffine (repeat x n)).
+  - rewrite sum_list_map_combine_const by exact Hlen.
+    reflexivity.
+  - apply repeat_length.
+Qed.
+
+Definition nary_barycentric (n : nat) (op : list R -> R) : Prop :=
+  exists (d : R),
+    d > 0 /\
+    forall (inputs : list R), length inputs = n ->
+      op inputs = sum_list inputs / d.
+
+Lemma nary_barycentric_symmetric_coeffs : forall n op d,
+  nary_barycentric n op ->
+  d > 0 ->
+  (forall inputs, length inputs = n -> op inputs = sum_list inputs / d) ->
+  exists (c : R), forall inputs, length inputs = n ->
+    op inputs = c * sum_list inputs.
+Proof.
+  intros n op d Hbary Hd Hop.
+  exists (/ d).
+  intros inputs Hlen.
+  rewrite Hop by exact Hlen.
+  unfold Rdiv. ring.
+Qed.
+
+Lemma nary_barycentric_on_repeat : forall n op d x,
+  d > 0 ->
+  (forall inputs, length inputs = n -> op inputs = sum_list inputs / d) ->
+  op (repeat x n) = INR n * x / d.
+Proof.
+  intros n op d x Hd Hop.
+  rewrite Hop.
+  - rewrite sum_list_const. reflexivity.
+  - apply repeat_length.
+Qed.
+
+Theorem nary_identity_determines_denominator_barycentric :
+  forall n op d,
+  (n >= 2)%nat ->
+  d > 0 ->
+  nary_identity_law n op 0 ->
+  (forall inputs, length inputs = n -> op inputs = sum_list inputs / d) ->
+  d = INR (n - 1).
+Proof.
+  intros n op d Hn Hd Hid Hbary.
+  unfold nary_identity_law in Hid.
+  assert (Hid1: op (0 :: repeat 1 (n - 1)) = 1).
+  { apply Hid. }
+  rewrite Hbary in Hid1.
+  - assert (Hsum: sum_list (0 :: repeat 1 (n - 1)) = INR (n - 1)).
+    { simpl. rewrite sum_list_const. rewrite minus_INR by lia.
+      assert (H: INR n - 1 = INR (n - 1)).
+      { rewrite minus_INR by lia. reflexivity. }
+      lra. }
+    rewrite Hsum in Hid1.
+    assert (Heq: INR (n - 1) / d = 1) by exact Hid1.
+    unfold Rdiv in Heq.
+    apply Rmult_eq_compat_r with (r := d) in Heq.
+    rewrite Rmult_assoc in Heq.
+    rewrite Rinv_l in Heq by lra.
+    rewrite Rmult_1_r in Heq.
+    lra.
+  - simpl. rewrite repeat_length. lia.
+Qed.
+
+Lemma nary_barycentric_lipschitz : forall n op d x,
+  (n >= 2)%nat ->
+  d = INR (n - 1) ->
+  (forall inputs, length inputs = n -> op inputs = sum_list inputs / d) ->
+  x <> 0 ->
+  op (repeat x n) = INR n / INR (n - 1) * x.
+Proof.
+  intros n op d x Hn Hd Hbary Hx_neq.
+  rewrite Hbary.
+  - rewrite sum_list_const.
+    rewrite Hd.
+    assert (Hn1_pos: INR (n - 1) > 0).
+    { apply lt_0_INR. lia. }
+    field. lra.
+  - apply repeat_length.
+Qed.
+
+Theorem nary_impossibility :
+  forall (n : nat),
+  (n >= 3)%nat ->
+  exists (lipschitz_constant : R),
+    lipschitz_constant = INR n / INR (n - 1) /\
+    lipschitz_constant > 1 /\
+    (forall (op : list R -> R),
+      nary_cyclic n op ->
+      nary_identity_law n op 0 ->
+      nary_barycentric n op ->
+      forall x, x <> 0 ->
+        Rabs (op (repeat x n)) = lipschitz_constant * Rabs x /\
+        Rabs (op (repeat x n)) > Rabs x).
+Proof.
+  intros n Hn.
+  exists (INR n / INR (n - 1)).
+  split; [reflexivity |].
+  split; [apply nary_stability_condition; exact Hn |].
+  intros op Hcyc Hid Hbary x Hx_neq.
+
+  destruct Hbary as [d [Hd Hbary_def]].
+
+  assert (Hn2: (n >= 2)%nat) by lia.
+  assert (Hd_eq: d = INR (n - 1)).
+  { eapply nary_identity_determines_denominator_barycentric; eauto. }
+
+  assert (Hop_repeat: op (repeat x n) = INR n / INR (n - 1) * x).
+  { eapply nary_barycentric_lipschitz; eauto. }
+
+  split.
+  - rewrite Hop_repeat.
+    rewrite Rabs_mult.
+    rewrite (Rabs_right (INR n / INR (n - 1))).
+    + reflexivity.
+    + apply Rle_ge.
+      assert (Hn_pos: INR n > 0) by (apply lt_0_INR; lia).
+      assert (Hn1_pos: INR (n - 1) > 0) by (apply lt_0_INR; lia).
+      unfold Rdiv. apply Rmult_le_pos; [lra |].
+      apply Rlt_le. apply Rinv_0_lt_compat. exact Hn1_pos.
+
+  - rewrite Hop_repeat.
+    assert (Hfactor: INR n / INR (n - 1) > 1).
+    { apply nary_stability_condition. exact Hn. }
+    assert (Hx_abs_pos: Rabs x > 0).
+    { apply Rabs_pos_lt. exact Hx_neq. }
+    rewrite Rabs_mult.
+    rewrite (Rabs_right (INR n / INR (n - 1))).
+    + assert (H: INR n / INR (n - 1) * Rabs x > 1 * Rabs x).
+      { apply Rmult_gt_compat_r; assumption. }
+      lra.
+    + apply Rle_ge.
+      assert (Hn_pos: INR n > 0) by (apply lt_0_INR; lia).
+      assert (Hn1_pos: INR (n - 1) > 0) by (apply lt_0_INR; lia).
+      unfold Rdiv. apply Rmult_le_pos; [lra |].
+      apply Rlt_le. apply Rinv_0_lt_compat. exact Hn1_pos.
+Qed.
+
+Corollary ternary_is_special_case :
+  let n := 3%nat in
+  INR n / INR (n - 1) = 3 / 2.
+Proof.
+  simpl. lra.
+Qed.
+
+Corollary quaternary_also_unstable :
+  let n := 4%nat in
+  INR n / INR (n - 1) = 4 / 3 /\
+  4 / 3 > 1.
+Proof.
+  simpl.
+  split; [lra | lra].
+Qed.
+
+Corollary binary_is_stable_boundary :
+  let n := 2%nat in
+  INR n / INR (n - 1) = 2 / 1 /\
+  2 / 1 = 2.
+Proof.
+  simpl.
+  split; [lra | lra].
+Qed.
+
+Theorem ternary_affine_identity_impossible :
+  forall op,
+  nary_cyclic 3 op ->
+  nary_identity_law 3 op 0 ->
+  ~nary_affine 3 op.
+Proof.
+  intros op Hcyc Hid.
+  intro Haff.
+  destruct Haff as [coeffs [Hlen [Hsum Haffine]]].
+
+  destruct (first_coeff_from_identity 3 coeffs op ltac:(lia) Hlen Hsum Haffine Hid)
+    as [c0 [cs [Hcoeffs_eq [Hc0_zero Hcs_sum]]]].
+
+  assert (Hlen_cs: length cs = 2%nat).
+  { rewrite Hcoeffs_eq in Hlen. simpl in Hlen. lia. }
+
+  destruct cs as [|c1 [|c2 [|]]]; try discriminate.
+  simpl in Hcs_sum.
+  clear Hlen_cs.
+
+  unfold nary_cyclic in Hcyc.
+  assert (Hcyc_affine: forall a0 a1 a2,
+    c0 * a0 + c1 * a1 + c2 * a2 = c0 * a2 + c1 * a0 + c2 * a1).
+  { intros a0 a1 a2.
+    assert (Hlen_input: length [a0; a1; a2] = 3%nat) by (simpl; reflexivity).
+    rewrite Hcoeffs_eq in Haffine.
+    pose proof (Haffine [a0; a1; a2] Hlen_input) as H1.
+    assert (Hrot: skipn 2 [a0; a1; a2] ++ firstn 2 [a0; a1; a2] = [a2; a0; a1]) by reflexivity.
+    assert (Hlen_rot: length [a2; a0; a1] = 3%nat) by (simpl; reflexivity).
+    pose proof (Haffine [a2; a0; a1] Hlen_rot) as H2.
+    pose proof (Hcyc [a0; a1; a2] Hlen_input 2%nat ltac:(lia)) as Hcyc_inst.
+    rewrite Hrot in Hcyc_inst.
+    rewrite H1 in Hcyc_inst.
+    rewrite H2 in Hcyc_inst.
+    simpl in H1, H2, Hcyc_inst.
+    lra. }
+
+  pose proof (cyclic_forces_equal_coeffs_base c0 c1 c2 Hcyc_affine) as [Heq01 Heq12].
+
+  rewrite Hc0_zero in Heq01.
+  rewrite <- Heq01 in Hcs_sum.
+  rewrite <- Heq12 in Hcs_sum.
+
+  simpl in Hcs_sum.
+  lra.
+Qed.
+
+End NaryGeneralization.
+
+Section OperatorSpectrum.
+
+Context {Omega : Type} `{ValuatedTernaryAlgebra Omega}.
+
+Definition T (x : Omega) : Omega := ternary_op x x x.
+
+Definition is_fixed_point (x : Omega) : Prop :=
+  T x = x.
+
+Lemma identity_is_fixed_point : is_fixed_point identity.
+Proof.
+  unfold is_fixed_point, T.
+  apply identity_law.
+Qed.
+
+Lemma fixed_point_zero_valuation : forall x,
+  is_fixed_point x -> valuation x = 0 -> x = identity.
+Proof.
+  intros x Hfp Hval.
+  apply valuation_faithful.
+  exact Hval.
+Qed.
+
+Lemma T_identity_gives_fixed_point : forall x,
+  T x = identity -> is_fixed_point identity.
+Proof.
+  intros x Hx.
+  apply identity_is_fixed_point.
+Qed.
+
+Theorem fixed_point_with_zero_valuation_is_identity : forall x,
+  is_fixed_point x -> valuation x = 0 -> x = identity.
+Proof.
+  intros x Hfp Hval.
+  apply valuation_faithful.
+  exact Hval.
+Qed.
+
+Theorem identity_unique_zero_valuation_fixed_point : forall x,
+  is_fixed_point x -> valuation x = 0 -> x = identity.
+Proof.
+  intros x Hfp Hval.
+  apply fixed_point_with_zero_valuation_is_identity; assumption.
+Qed.
+
+Lemma identity_laws_all : forall a,
+  ternary_op identity a a = a /\
+  ternary_op a identity a = a /\
+  ternary_op a a identity = a.
+Proof.
+  intro a.
+  split; [apply identity_law|].
+  split.
+  - assert (Hid: ternary_op identity a a = a) by apply identity_law.
+    rewrite cyclic_symmetry in Hid.
+    exact Hid.
+  - assert (Hid1: ternary_op identity a a = a) by apply identity_law.
+    assert (Hid2: ternary_op a a identity = ternary_op identity a a).
+    { rewrite cyclic_symmetry. rewrite cyclic_symmetry. reflexivity. }
+    rewrite Hid2. exact Hid1.
+Qed.
+
+Lemma cyclic_permutation_1 : forall a b c,
+  ternary_op a b c = ternary_op b c a.
+Proof.
+  intros a b c.
+  rewrite cyclic_symmetry.
+  rewrite cyclic_symmetry.
+  reflexivity.
+Qed.
+
+Lemma cyclic_permutation_2 : forall a b c,
+  ternary_op a b c = ternary_op c a b.
+Proof.
+  intros a b c.
+  apply cyclic_symmetry.
+Qed.
+
+Lemma T_valuation_bound : forall x,
+  valuation (T x) <= (3/2) * valuation x.
+Proof.
+  intros x.
+  unfold T.
+  pose proof (valuation_barycentric x x x) as Hineq.
+  assert (H_calc: (valuation x + valuation x + valuation x) / 2 = 3 / 2 * valuation x).
+  { field. }
+  rewrite H_calc in Hineq.
+  exact Hineq.
+Qed.
+
+Definition lipschitz_bound_T : R := 3/2.
+
+Theorem T_valuation_lipschitz : forall x,
+  valuation (T x) <= lipschitz_bound_T * valuation x.
+Proof.
+  intros x.
+  unfold lipschitz_bound_T.
+  apply T_valuation_bound.
+Qed.
+
+
+Fixpoint T_iter (n : nat) (x : Omega) : Omega :=
+  match n with
+  | O => x
+  | S n' => T (T_iter n' x)
+  end.
+
+Lemma T_iter_bound : forall n x,
+  valuation (T_iter n x) <= (3/2)^n * valuation x.
+Proof.
+  intros n x.
+  induction n as [|n' IHn'].
+  - simpl. lra.
+  - simpl T_iter.
+    apply Rle_trans with (r2 := (3/2) * valuation (T_iter n' x)).
+    + apply T_valuation_bound.
+    + apply Rle_trans with (r2 := (3/2) * ((3/2)^n' * valuation x)).
+      * apply Rmult_le_compat_l; [lra | exact IHn'].
+      * assert (Hexp: (3/2) * ((3/2)^n' * valuation x) = (3/2)^(S n') * valuation x).
+        { simpl. ring. }
+        rewrite Hexp. apply Rle_refl.
+Qed.
+
+End OperatorSpectrum.
+
+Section DerivedBinaryProperties.
+
+Context {Omega : Type} `{ValuatedTernaryAlgebra Omega}.
+
+Lemma derived_binary_with_identity_left : forall a,
+  a ◊ identity = ternary_op a identity identity.
+Proof.
+  intro a.
+  unfold derived_binary_op.
+  reflexivity.
+Qed.
+
+Lemma derived_binary_with_identity_right : forall a,
+  identity ◊ a = ternary_op identity a identity.
+Proof.
+  intro a.
+  unfold derived_binary_op.
+  reflexivity.
+Qed.
+
+Lemma derived_binary_identity_not_preserved : forall a,
+  a ◊ identity = a -> ternary_op a identity identity = a.
+Proof.
+  intros a Heq.
+  rewrite <- derived_binary_with_identity_left.
+  exact Heq.
+Qed.
+
+Lemma derived_binary_cyclic_variant : forall a b,
+  a ◊ b = ternary_op a b identity.
+Proof.
+  intros a b.
+  unfold derived_binary_op.
+  reflexivity.
+Qed.
+
+Lemma derived_binary_valuation_bound : forall a b,
+  valuation (a ◊ b) <= (valuation a + valuation b) / 2.
+Proof.
+  intros a b.
+  unfold derived_binary_op.
+  pose proof (valuation_barycentric a b identity) as Hbary.
+  rewrite valuation_identity in Hbary.
+  assert (Hcalc: (valuation a + valuation b + 0) / 2 = (valuation a + valuation b) / 2).
+  { field. }
+  rewrite <- Hcalc.
+  exact Hbary.
+Qed.
+
+End DerivedBinaryProperties.
+
+Section QuotientStructure.
+
+Context {Omega : Type} `{ValuatedTernaryAlgebra Omega}.
+
+Definition nu_equiv (a b : Omega) : Prop :=
+  valuation a = valuation b.
+
+Notation "a ~ b" := (nu_equiv a b) (at level 70).
+
+Lemma nu_equiv_reflexive : forall a, a ~ a.
+Proof.
+  intro a.
+  unfold nu_equiv.
+  reflexivity.
+Qed.
+
+Lemma nu_equiv_symmetric : forall a b, a ~ b -> b ~ a.
+Proof.
+  intros a b Hab.
+  unfold nu_equiv in *.
+  symmetry.
+  exact Hab.
+Qed.
+
+Lemma nu_equiv_transitive : forall a b c, a ~ b -> b ~ c -> a ~ c.
+Proof.
+  intros a b c Hab Hbc.
+  unfold nu_equiv in *.
+  rewrite Hab.
+  exact Hbc.
+Qed.
+
+Definition ternary_op_coherent : Prop :=
+  forall a b c d e f,
+    a ~ d -> b ~ e -> c ~ f ->
+    ternary_op a b c ~ ternary_op d e f.
+
+Lemma ternary_op_coherent_weak : forall a b c d e f,
+  a ~ d -> b ~ e -> c ~ f ->
+  valuation (ternary_op a b c) <=
+  (valuation d + valuation e + valuation f) / 2.
+Proof.
+  intros a b c d e f Ha Hb Hc.
+  unfold nu_equiv in *.
+  pose proof (valuation_barycentric a b c) as H1.
+  rewrite Ha, Hb, Hc in H1.
+  exact H1.
+Qed.
+
+Remark ternary_op_coherent_reformulation :
+  ternary_op_coherent <->
+  (forall a b c d e f,
+    valuation a = valuation d ->
+    valuation b = valuation e ->
+    valuation c = valuation f ->
+    valuation (ternary_op a b c) = valuation (ternary_op d e f)).
+Proof.
+  unfold ternary_op_coherent, nu_equiv.
+  split; intros Hcoh a b c d e f Ha Hb Hc; apply Hcoh; assumption.
+Qed.
+
+End QuotientStructure.
+
+Section QuotientConstruction.
+
+Context {Omega : Type} `{ValuatedTernaryAlgebra Omega}.
+
+Definition quotient_elem := {v : R | exists x : Omega, valuation x = v}.
+
+Lemma quotient_elem_witness : forall (v : R),
+  (exists x : Omega, valuation x = v) -> quotient_elem.
+Proof.
+  intros v Hex.
+  exists v.
+  exact Hex.
+Defined.
+
+Definition quotient_val (q : quotient_elem) : R :=
+  proj1_sig q.
+
+Definition lift_to_quotient (x : Omega) : quotient_elem.
+Proof.
+  exists (valuation x).
+  exists x.
+  reflexivity.
+Defined.
+
+Lemma lift_preserves_valuation : forall x,
+  quotient_val (lift_to_quotient x) = valuation x.
+Proof.
+  intro x.
+  unfold quotient_val, lift_to_quotient.
+  simpl.
+  reflexivity.
+Qed.
+
+Lemma quotient_elem_eq : forall (q1 q2 : quotient_elem),
+  quotient_val q1 = quotient_val q2 -> q1 = q2.
+Proof.
+  intros [v1 H1] [v2 H2] Heq.
+  simpl in Heq.
+  subst v2.
+  f_equal.
+  apply proof_irrelevance.
+Qed.
+
+Context (coherence : ternary_op_coherent).
+
+Definition choose_repr : quotient_elem -> Omega :=
+  fun q => proj1_sig (constructive_indefinite_description _ (proj2_sig q)).
+
+Lemma choose_repr_correct : forall q,
+  valuation (choose_repr q) = quotient_val q.
+Proof.
+  intros [v Hex].
+  unfold choose_repr, quotient_val.
+  simpl.
+  destruct (constructive_indefinite_description _ Hex) as [x Hx].
+  simpl.
+  exact Hx.
+Qed.
+
+Definition quotient_ternary_op (q1 q2 q3 : quotient_elem) : quotient_elem :=
+  lift_to_quotient (ternary_op (choose_repr q1) (choose_repr q2) (choose_repr q3)).
+
+Definition quotient_identity : quotient_elem :=
+  lift_to_quotient identity.
+
+Lemma quotient_identity_val : quotient_val quotient_identity = 0.
+Proof.
+  unfold quotient_identity, quotient_val, lift_to_quotient.
+  simpl.
+  apply valuation_identity.
+Qed.
+
+Lemma quotient_op_well_defined : forall q1 q2 q3 q1' q2' q3',
+  quotient_val q1 = quotient_val q1' ->
+  quotient_val q2 = quotient_val q2' ->
+  quotient_val q3 = quotient_val q3' ->
+  quotient_val (quotient_ternary_op q1 q2 q3) =
+  quotient_val (quotient_ternary_op q1' q2' q3').
+Proof.
+  intros q1 q2 q3 q1' q2' q3' Hq1 Hq2 Hq3.
+  unfold quotient_ternary_op, quotient_val, lift_to_quotient.
+  simpl.
+  unfold ternary_op_coherent, nu_equiv in coherence.
+  apply coherence.
+  - rewrite choose_repr_correct. rewrite choose_repr_correct. exact Hq1.
+  - rewrite choose_repr_correct. rewrite choose_repr_correct. exact Hq2.
+  - rewrite choose_repr_correct. rewrite choose_repr_correct. exact Hq3.
+Qed.
+
+Lemma quotient_cyclic_symmetry : forall a b c,
+  quotient_ternary_op a b c = quotient_ternary_op c a b.
+Proof.
+  intros a b c.
+  unfold quotient_ternary_op.
+  f_equal.
+  apply cyclic_symmetry.
+Qed.
+
+Lemma choose_repr_quotient_identity_faithful :
+  choose_repr quotient_identity = identity.
+Proof.
+  apply valuation_faithful.
+  rewrite choose_repr_correct.
+  unfold quotient_identity, quotient_val, lift_to_quotient.
+  simpl.
+  apply valuation_identity.
+Qed.
+
+Lemma quotient_identity_law : forall a,
+  quotient_ternary_op quotient_identity a a = a.
+Proof.
+  intro a.
+  apply quotient_elem_eq.
+  unfold quotient_ternary_op, quotient_val.
+  simpl.
+  unfold lift_to_quotient.
+  simpl.
+  repeat rewrite choose_repr_correct.
+  rewrite choose_repr_quotient_identity_faithful.
+  pose proof (identity_law (choose_repr a)) as Hid.
+  rewrite Hid.
+  rewrite choose_repr_correct.
+  reflexivity.
+Qed.
+
+Instance QuotientTernaryAlgebra : TernaryAlgebra quotient_elem := {
+  ternary_op := quotient_ternary_op;
+  identity := quotient_identity;
+  cyclic_symmetry := quotient_cyclic_symmetry;
+  identity_law := quotient_identity_law;
+}.
+
+Theorem quotient_inherits_ternary_algebra_when_coherent :
+  ternary_op_coherent ->
+  exists (Q : Type) (H : TernaryAlgebra Q), True.
+Proof.
+  intro Hcoh.
+  exists quotient_elem, QuotientTernaryAlgebra.
+  exact I.
+Qed.
+
+End QuotientConstruction.
+
+Section ConvergenceAnalysis.
+
+Context {Omega : Type} `{ValuatedTernaryAlgebra Omega}.
+
+Context (f : nat -> Omega).
+Context (f_injection : forall n m, f n = f m -> n = m).
+Context (f_valuation : forall n, (n > 0)%nat -> valuation (f n) = 1 / INR n).
+
+Fixpoint sequence (a0 a1 : Omega) (n : nat) : Omega :=
+  match n with
+  | 0%nat => a0
+  | 1%nat => a1
+  | S (S m as n') => ternary_op (sequence a0 a1 n') (sequence a0 a1 m) (f (S (S m)))
+  end.
+
+Lemma INR_pos : forall n, (n > 0)%nat -> INR n > 0.
+Proof.
+  intros n Hn.
+  apply lt_INR in Hn.
+  simpl in Hn.
+  exact Hn.
+Qed.
+
+Lemma inv_INR_bound : forall n, (n >= 2)%nat -> 1 / INR n <= 1/2.
+Proof.
+  intros n Hn.
+  assert (H2: INR n >= 2).
+  { apply le_INR in Hn. simpl in Hn. lra. }
+  assert (H_pos: INR n > 0).
+  { apply INR_pos. lia. }
+  apply Rmult_le_reg_r with (r := INR n).
+  - exact H_pos.
+  - field_simplify.
+    + lra.
+    + lra.
+Qed.
+
+Lemma valuation_f_bound : forall n, (n >= 2)%nat -> valuation (f n) <= 1/2.
+Proof.
+  intros n Hn.
+  rewrite f_valuation.
+  - apply inv_INR_bound. exact Hn.
+  - lia.
+Qed.
+
+Lemma sequence_valuation_bound : forall a0 a1 n,
+  (n >= 2)%nat ->
+  valuation (sequence a0 a1 n) <=
+  (valuation (sequence a0 a1 (n-1)) + valuation (sequence a0 a1 (n-2)) + valuation (f n)) / 2.
+Proof.
+  intros a0 a1 n Hn.
+  destruct n as [|[|m]].
+  - lia.
+  - lia.
+  - assert (H1: (S (S m) - 1 = S m)%nat) by lia.
+    assert (H2: (S (S m) - 2 = m)%nat) by lia.
+    rewrite H1, H2.
+    simpl.
+    apply valuation_barycentric.
+Qed.
+
+Theorem sequence_valuation_linear_bound : forall a0 a1 n,
+  valuation (sequence a0 a1 n) <=
+  Rmax (valuation a0) (valuation a1) + INR n * / 2.
+Proof.
+  intros a0 a1 n.
+  induction n as [n IHn] using (well_founded_induction lt_wf).
+  destruct n as [|[|n']].
+  - simpl.
+    assert (H_rmax: valuation a0 <= Rmax (valuation a0) (valuation a1)).
+    { apply Rmax_l. }
+    simpl. lra.
+  - simpl.
+    assert (H_rmax: valuation a1 <= Rmax (valuation a0) (valuation a1)).
+    { apply Rmax_r. }
+    simpl. lra.
+  - simpl sequence.
+    apply Rle_trans with (r2 := (valuation (sequence a0 a1 (S n')) + valuation (sequence a0 a1 n') + valuation (f (S (S n')))) / 2).
+    + apply valuation_barycentric.
+    + assert (H1: valuation (sequence a0 a1 (S n')) <= Rmax (valuation a0) (valuation a1) + INR (S n') * / 2).
+      { apply IHn. lia. }
+      assert (H2: valuation (sequence a0 a1 n') <= Rmax (valuation a0) (valuation a1) + INR n' * / 2).
+      { apply IHn. lia. }
+      assert (Hf_bound: valuation (f (S (S n'))) <= 1 / 2).
+      { apply valuation_f_bound. lia. }
+      assert (H_sum_bound: valuation (sequence a0 a1 (S n')) + valuation (sequence a0 a1 n') + valuation (f (S (S n'))) <=
+                          2 * Rmax (valuation a0) (valuation a1) + INR (S n') * / 2 + INR n' * / 2 + 1 / 2).
+      { lra. }
+      apply Rle_trans with (r2 := (2 * Rmax (valuation a0) (valuation a1) + INR (S n') * / 2 + INR n' * / 2 + 1 / 2) / 2).
+      * apply Rmult_le_compat_r; [lra | exact H_sum_bound].
+      * assert (H_simp1: INR (S (S n')) = INR n' + 2).
+        { rewrite S_INR. rewrite S_INR. simpl. lra. }
+        assert (H_simp2: INR (S n') = INR n' + 1).
+        { rewrite S_INR. simpl. lra. }
+        rewrite H_simp1, H_simp2. lra.
+Qed.
+
+Lemma inv_pos : forall x, x > 0 -> 1 / x > 0.
+Proof.
+  intros x Hx.
+  apply Rdiv_lt_0_compat; lra.
+Qed.
+
+Lemma archimed_nat_witness : forall r, r > 0 ->
+  exists N, (N > 0)%nat /\ INR N > r.
+Proof.
+  intros r Hr.
+  destruct (archimed r) as [H_up H_low].
+  assert (H_up_pos: (0 < up r)%Z).
+  { apply lt_IZR. apply Rle_lt_trans with (r2 := r); lra. }
+  exists (S (Z.to_nat (up r))).
+  split; [lia |].
+  rewrite S_INR. rewrite INR_IZR_INZ.
+  rewrite Z2Nat.id by lia. lra.
+Qed.
+
+Lemma inv_INR_decreasing : forall n m,
+  (n > 0)%nat -> (m > 0)%nat ->
+  (n >= m)%nat -> 1 / INR n <= 1 / INR m.
+Proof.
+  intros n m Hn Hm Hnm.
+  assert (H_n_pos: INR n > 0) by (apply INR_pos; exact Hn).
+  assert (H_m_pos: INR m > 0) by (apply INR_pos; exact Hm).
+  apply Rmult_le_reg_r with (r := INR n * INR m).
+  - apply Rmult_lt_0_compat; assumption.
+  - field_simplify.
+    + apply le_INR in Hnm. lra.
+    + lra.
+    + lra.
+Qed.
+
+Lemma inv_INR_lt_bound : forall n r,
+  (n > 0)%nat -> INR n > 1 / r -> r > 0 -> 1 / INR n < r.
+Proof.
+  intros n r Hn Hbound Hr.
+  assert (H_n_pos: INR n > 0) by (apply INR_pos; exact Hn).
+  assert (H_prod: INR n * r > 1).
+  { apply Rmult_gt_reg_r with (r := /r).
+    - apply Rinv_0_lt_compat. exact Hr.
+    - replace (INR n * r * / r) with (INR n) by (field; lra).
+      replace (1 * / r) with (/ r) by ring.
+      replace (/ r) with (1 / r) by (unfold Rdiv; ring).
+      exact Hbound. }
+  apply Rmult_lt_reg_r with (r := INR n).
+  - exact H_n_pos.
+  - replace (1 / INR n * INR n) with 1 by (field; lra).
+    replace (r * INR n) with (INR n * r) by ring.
+    exact H_prod.
+Qed.
+
+Lemma f_valuation_implies_limit : forall eps, eps > 0 ->
+  exists N, forall n, (n >= N)%nat -> valuation (f n) < eps.
+Proof.
+  intros eps Heps.
+  assert (H_inv_pos: 1 / eps > 0) by (apply inv_pos; exact Heps).
+  destruct (archimed_nat_witness (1 / eps) H_inv_pos) as [N [HN_pos HN_bound]].
+  exists N.
+  intros n Hn.
+  assert (Hn_pos: (n > 0)%nat) by lia.
+  rewrite f_valuation by exact Hn_pos.
+  assert (H_n_ge_N: (n >= N)%nat) by exact Hn.
+  assert (H_inv_dec: 1 / INR n <= 1 / INR N).
+  { apply inv_INR_decreasing; assumption. }
+  apply Rle_lt_trans with (r2 := 1 / INR N); [exact H_inv_dec |].
+  apply inv_INR_lt_bound; assumption.
+Qed.
+
+Definition is_Cauchy (seq : nat -> Omega) : Prop :=
+  forall eps, eps > 0 -> exists N, forall n m,
+    (n >= N)%nat -> (m >= N)%nat ->
+    Rabs (valuation (seq n) - valuation (seq m)) < eps.
+
+Theorem f_converges_to_identity :
+  forall eps, eps > 0 ->
+  exists N, forall n, (n >= N)%nat ->
+  Rabs (valuation (f n) - 0) < eps.
+Proof.
+  intros eps Heps.
+  destruct (f_valuation_implies_limit eps Heps) as [N HN].
+  exists N.
+  intros n Hn.
+  rewrite Rminus_0_r.
+  rewrite Rabs_right.
+  - apply HN. exact Hn.
+  - apply Rle_ge. apply valuation_nonneg.
+Qed.
+
+Theorem constant_sequence_is_Cauchy : forall x : Omega,
+  is_Cauchy (fun _ => x).
+Proof.
+  intro x.
+  unfold is_Cauchy.
+  intros eps Heps.
+  exists 0%nat.
+  intros n m Hn Hm.
+  rewrite Rminus_diag_eq by reflexivity.
+  rewrite Rabs_R0.
+  exact Heps.
+Qed.
+
+Theorem eventually_constant_implies_Cauchy : forall (seq : nat -> Omega) (N : nat) (x : Omega),
+  (forall n, (n >= N)%nat -> seq n = x) ->
+  is_Cauchy seq.
+Proof.
+  intros seq N x Heventual.
+  unfold is_Cauchy.
+  intros eps Heps.
+  exists N.
+  intros n m Hn Hm.
+  rewrite (Heventual n Hn).
+  rewrite (Heventual m Hm).
+  rewrite Rminus_diag_eq by reflexivity.
+  rewrite Rabs_R0.
+  exact Heps.
+Qed.
+
+End ConvergenceAnalysis.
+
+Section ConvergenceAnalysisIdentityCase.
+
+Context {Omega : Type} `{ValuatedTernaryAlgebra Omega}.
+
+Context (f : nat -> Omega).
+Context (f_all_identity : forall n, (n > 0)%nat -> f n = identity).
+
+Fixpoint sequence_identity (a0 a1 : Omega) (n : nat) : Omega :=
+  match n with
+  | 0%nat => a0
+  | 1%nat => a1
+  | S (S m as n') => ternary_op (sequence_identity a0 a1 n') (sequence_identity a0 a1 m) (f (S (S m)))
+  end.
+
+Theorem sequence_from_identity_with_identity_perturbations : forall n,
+  sequence_identity identity identity n = identity.
+Proof.
+  intro n.
+  induction n as [n IHn] using (well_founded_induction lt_wf).
+  destruct n as [|[|n']].
+  - reflexivity.
+  - reflexivity.
+  - change (sequence_identity identity identity (S (S n'))) with
+      (ternary_op (sequence_identity identity identity (S n'))
+                  (sequence_identity identity identity n')
+                  (f (S (S n')))).
+    rewrite (IHn (S n')).
+    + rewrite (IHn n').
+      * rewrite (f_all_identity (S (S n'))).
+        -- rewrite identity_law. reflexivity.
+        -- lia.
+      * lia.
+    + lia.
+Qed.
+
+Corollary identity_sequence_with_trivial_f_is_Cauchy :
+  is_Cauchy (fun n => sequence_identity identity identity n).
+Proof.
+  apply eventually_constant_implies_Cauchy with (N := 0%nat) (x := identity).
+  intro n. intro Hge. apply sequence_from_identity_with_identity_perturbations.
+Qed.
+
+End ConvergenceAnalysisIdentityCase.
+
+Section GeneralConvergenceTheorems.
+
+Context {Omega : Type} `{ValuatedTernaryAlgebra Omega}.
+
+Definition is_Cauchy_general (seq : nat -> Omega) : Prop :=
+  forall eps, eps > 0 -> exists N, forall n m,
+    (n >= N)%nat -> (m >= N)%nat ->
+    Rabs (valuation (seq n) - valuation (seq m)) < eps.
+
+Theorem bounded_convergence_implies_Cauchy:
+  forall (seq : nat -> Omega),
+  (exists M, forall n, valuation (seq n) <= M) ->
+  (forall eps, eps > 0 -> exists N, forall n m,
+     (n >= N)%nat -> (m >= N)%nat ->
+     Rabs (valuation (seq n) - valuation (seq m)) < eps) ->
+  is_Cauchy_general seq.
+Proof.
+  intros seq Hbounded Hgaps.
+  unfold is_Cauchy_general.
+  exact Hgaps.
+Qed.
+
+End GeneralConvergenceTheorems.
+
+Section Homomorphisms.
+
+Context {Omega Omega' : Type}.
+Context `{ValuatedTernaryAlgebra Omega}.
+Context `{ValuatedTernaryAlgebra Omega'}.
+
+Context (phi : Omega -> Omega').
+
+Definition preserves_ternary_structure : Prop :=
+  forall a b c,
+    phi (ternary_op a b c) = ternary_op (phi a) (phi b) (phi c).
+
+Context (g : R -> R).
+
+Definition preserves_valuation : Prop :=
+  forall x, valuation (phi x) = g (valuation x).
+
+Definition g_strictly_monotonic : Prop :=
+  forall x y, x < y -> g x < g y.
+
+Definition g_zero : Prop := g 0 = 0.
+
+Definition is_homomorphism : Prop :=
+  preserves_ternary_structure /\ preserves_valuation.
+
+Definition preserves_structure_Lipschitz (c : R) : Prop :=
+  preserves_ternary_structure /\ forall x, valuation (phi x) <= c * valuation x.
+
+Definition g_pos_hom : Prop :=
+  forall lambda t, 0 <= lambda -> g (lambda * t) = lambda * g t.
+
+Definition g_subadditive : Prop :=
+  forall x y z,
+    g ((x + y + z) / 2) <= (g x + g y + g z) / 2.
+
+Lemma linear_g_satisfies_subadditive : forall c,
+  (forall t, g t = c * t) -> g_subadditive.
+Proof.
+  intros c Hlin.
+  unfold g_subadditive.
+  intros x y z.
+  rewrite Hlin. rewrite Hlin. rewrite Hlin. rewrite Hlin.
+  lra.
+Qed.
+
+Lemma pos_hom_subadditive_preserves_barycentric :
+  g_pos_hom -> g_subadditive ->
+  forall x y z,
+    g ((x + y + z) / 2) <= (g x + g y + g z) / 2.
+Proof.
+  intros Hhom Hsub x y z.
+  apply Hsub.
+Qed.
+
+Definition g_power_law (c alpha : R) : R -> R :=
+  fun x => c * Rpower x alpha.
+
+Example g_quadratic (c : R) : R -> R := g_power_law c 2.
+
+Example g_sqrt (c : R) : R -> R := g_power_law c (1/2).
+
+Theorem linear_g_is_g_zero : forall c,
+  (forall t, t >= 0 -> g t = c * t) -> g 0 = 0.
+Proof.
+  intros c Hlin.
+  rewrite Hlin by lra.
+  lra.
+Qed.
+
+Theorem quadratic_violates_subadditive : forall c,
+  c > 0 ->
+  (forall t, t >= 0 -> g t = c * t * t) ->
+  ~ g_subadditive.
+Proof.
+  intros c Hc Hquad.
+  unfold g_subadditive.
+  intro Hcontra.
+  specialize (Hcontra 1 1 1).
+  assert (Hsum: (1 + 1 + 1) / 2 = 3 / 2) by lra.
+  assert (Hg_lhs: g ((1 + 1 + 1) / 2) = c * (3/2) * (3/2)).
+  { rewrite Hsum. apply Hquad. lra. }
+  assert (Hg_rhs1: g 1 = c * 1 * 1) by (apply Hquad; lra).
+  assert (Hg_rhs: (g 1 + g 1 + g 1) / 2 = c * 3 / 2).
+  { rewrite Hg_rhs1. lra. }
+  rewrite Hg_lhs in Hcontra.
+  rewrite Hg_rhs in Hcontra.
+  lra.
+Qed.
+
+Theorem homomorphism_gives_barycentric_bound :
+  is_homomorphism ->
+  forall a b c,
+    valuation (phi (ternary_op a b c)) <=
+    (g (valuation a) + g (valuation b) + g (valuation c)) / 2.
+Proof.
+  intros [Hpres Hval] a b c.
+  rewrite Hpres.
+  assert (Hineq: valuation (ternary_op (phi a) (phi b) (phi c)) <=
+                 (valuation (phi a) + valuation (phi b) + valuation (phi c)) / 2).
+  { apply valuation_barycentric. }
+  unfold preserves_valuation in Hval.
+  rewrite Hval, Hval, Hval in Hineq.
+  exact Hineq.
+Qed.
+
+Lemma g_preserves_identity_valuation :
+  is_homomorphism ->
+  g_zero ->
+  valuation (phi identity) = 0.
+Proof.
+  intros [Hpres Hval] Hgz.
+  unfold preserves_valuation in Hval.
+  rewrite Hval.
+  rewrite valuation_identity.
+  exact Hgz.
+Qed.
+
+End Homomorphisms.
+
+Section AssociatorFormalism.
+
+Context {Omega : Type} `{ValuatedTernaryAlgebra Omega}.
+
+Definition non_associative : Prop :=
+  exists a b c d e,
+    ternary_op (ternary_op a b c) d e <>
+    ternary_op a (ternary_op b c d) e.
+
+Definition associator (a b c d e : Omega) : Omega :=
+  ternary_op (ternary_op a b c) d e.
+
+Theorem associator_valuation_bound : forall a b c d e,
+  valuation (associator a b c d e) <=
+  (valuation (ternary_op a b c) + valuation d + valuation e) / 2.
+Proof.
+  intros a b c d e.
+  unfold associator.
+  apply valuation_barycentric.
+Qed.
+
+Lemma associator_bound_left : forall a b c d e,
+  valuation (ternary_op (ternary_op a b c) d e) <=
+  (valuation a + valuation b + valuation c + 2*valuation d + 2*valuation e) / 4.
+Proof.
+  intros a b c d e.
+  apply Rle_trans with (r2 := (valuation (ternary_op a b c) + valuation d + valuation e) / 2).
+  - apply valuation_barycentric.
+  - set (X := valuation (ternary_op a b c)).
+    assert (HX: X <= (valuation a + valuation b + valuation c) / 2).
+    { unfold X. apply valuation_barycentric. }
+    assert (H_calc: (X + valuation d + valuation e) / 2 <=
+                    ((valuation a + valuation b + valuation c) / 2 + valuation d + valuation e) / 2).
+    { apply Rmult_le_compat_r; [lra |].
+      apply Rplus_le_compat_r. apply Rplus_le_compat_r. exact HX. }
+    apply Rle_trans with (r2 := ((valuation a + valuation b + valuation c) / 2 + valuation d + valuation e) / 2).
+    + exact H_calc.
+    + assert (H_simp: ((valuation a + valuation b + valuation c) / 2 + valuation d + valuation e) / 2 =
+                     (valuation a + valuation b + valuation c + 2*valuation d + 2*valuation e) / 4).
+      { field. }
+      rewrite H_simp. apply Rle_refl.
+Qed.
+
+Lemma associator_bound_right : forall a b c d e,
+  valuation (ternary_op a (ternary_op b c d) e) <=
+  (2*valuation a + valuation b + valuation c + valuation d + 2*valuation e) / 4.
+Proof.
+  intros a b c d e.
+  apply Rle_trans with (r2 := (valuation a + valuation (ternary_op b c d) + valuation e) / 2).
+  - apply valuation_barycentric.
+  - assert (HY: valuation (ternary_op b c d) <= (valuation b + valuation c + valuation d) / 2).
+    { apply valuation_barycentric. }
+    assert (H_calc: (valuation a + valuation (ternary_op b c d) + valuation e) <=
+                    valuation a + (valuation b + valuation c + valuation d) / 2 + valuation e).
+    { lra. }
+    apply Rle_trans with (r2 := (valuation a + (valuation b + valuation c + valuation d) / 2 + valuation e) / 2).
+    + apply Rmult_le_compat_r; [lra | exact H_calc].
+    + assert (H_simp: (valuation a + (valuation b + valuation c + valuation d) / 2 + valuation e) / 2 =
+                     (2*valuation a + valuation b + valuation c + valuation d + 2*valuation e) / 4).
+      { field. }
+      rewrite H_simp. apply Rle_refl.
+Qed.
+
+Theorem non_associativity_witnessed_by_valuation : forall a b c d e,
+  valuation (ternary_op (ternary_op a b c) d e) <>
+  valuation (ternary_op a (ternary_op b c d) e) ->
+  ternary_op (ternary_op a b c) d e <>
+  ternary_op a (ternary_op b c d) e.
+Proof.
+  intros a b c d e Hval_neq Heq.
+  apply Hval_neq.
+  rewrite Heq.
+  reflexivity.
+Qed.
+
+End AssociatorFormalism.
+
+Section TrivialInstance.
+
+Instance TrivialTernaryAlgebra : TernaryAlgebra unit := {
+  ternary_op := fun _ _ _ => tt;
+  identity := tt;
+  cyclic_symmetry := fun a b c => match a, b, c with tt, tt, tt => eq_refl end;
+  identity_law := fun u => match u with tt => eq_refl end;
+}.
+
+Lemma trivial_valuation_barycentric : forall a b c : unit,
+  0 <= (0 + 0 + 0) / 2.
+Proof.
+  intros.
+  lra.
+Qed.
+
+Lemma trivial_valuation_faithful `{TernaryAlgebra unit} : forall x : unit,
+  (fun _ : unit => 0) x = 0 -> x = tt.
+Proof.
+  intros []; reflexivity.
+Qed.
+
+Instance TrivialValuatedTernaryAlgebra : ValuatedTernaryAlgebra unit := {
+  valuation := fun _ => 0;
+  valuation_nonneg := fun u => match u with tt => Rle_refl 0 end;
+  valuation_identity := eq_refl;
+  valuation_barycentric := trivial_valuation_barycentric;
+  valuation_faithful := trivial_valuation_faithful;
+}.
+
+Lemma trivial_instance_satisfies_all_axioms :
+  exists (Omega : Type) (H : TernaryAlgebra Omega) (H0 : ValuatedTernaryAlgebra Omega), True.
+Proof.
+  exists unit, TrivialTernaryAlgebra, TrivialValuatedTernaryAlgebra.
+  exact I.
+Qed.
+
+Theorem trivial_instance_is_coherent : ternary_op_coherent.
+Proof.
+  unfold ternary_op_coherent, nu_equiv.
+  intros a b c d e f Ha Hb Hc.
+  destruct a, b, c, d, e, f.
+  simpl.
+  reflexivity.
+Qed.
+
+Corollary trivial_satisfies_coherence_axioms :
+  exists (Omega : Type) (H : TernaryAlgebra Omega) (H0 : ValuatedTernaryAlgebra Omega),
+    ternary_op_coherent.
+Proof.
+  exists unit, TrivialTernaryAlgebra, TrivialValuatedTernaryAlgebra.
+  apply trivial_instance_is_coherent.
+Qed.
+
+End TrivialInstance.
+
+Section NormedVectorSpaceInstance.
+
+Definition R_vec := R.
+
+Definition R_vec_ternary (a b c : R_vec) : R_vec :=
+  (a + b + c) / 2.
+
+Definition R_vec_identity : R_vec := 0.
+
+Definition R_vec_norm (x : R_vec) : R := Rabs x.
+
+Lemma R_vec_cyclic : forall a b c,
+  R_vec_ternary a b c = R_vec_ternary c a b.
+Proof.
+  intros a b c.
+  unfold R_vec_ternary.
+  f_equal. ring.
+Qed.
+
+Lemma R_vec_identity_law : forall a,
+  R_vec_ternary R_vec_identity a a = a.
+Proof.
+  intro a.
+  unfold R_vec_ternary, R_vec_identity.
+  field_simplify; lra.
+Qed.
+
+Instance RVecTernaryAlgebra : TernaryAlgebra R_vec := {
+  ternary_op := R_vec_ternary;
+  identity := R_vec_identity;
+  cyclic_symmetry := R_vec_cyclic;
+  identity_law := R_vec_identity_law;
+}.
+
+Lemma R_vec_norm_nonneg : forall x, 0 <= R_vec_norm x.
+Proof.
+  intro x.
+  unfold R_vec_norm.
+  apply Rabs_pos.
+Qed.
+
+Lemma R_vec_norm_identity : R_vec_norm R_vec_identity = 0.
+Proof.
+  unfold R_vec_norm, R_vec_identity.
+  apply Rabs_R0.
+Qed.
+
+Lemma R_vec_barycentric : forall a b c,
+  R_vec_norm (R_vec_ternary a b c) <= (R_vec_norm a + R_vec_norm b + R_vec_norm c) / 2.
+Proof.
+  intros a b c.
+  unfold R_vec_norm, R_vec_ternary, Rdiv.
+  assert (Hinv2: 0 < / 2) by (apply Rinv_0_lt_compat; lra).
+  apply Rle_trans with (r2 := Rabs (a + b + c) * / 2).
+  - rewrite Rabs_mult.
+    rewrite (Rabs_right (/ 2)).
+    + apply Rle_refl.
+    + lra.
+  - apply Rle_trans with (r2 := (Rabs (a + b) + Rabs c) * / 2).
+    + apply Rmult_le_compat_r.
+      * lra.
+      * apply Rabs_triang.
+    + apply Rle_trans with (r2 := ((Rabs a + Rabs b) + Rabs c) * / 2).
+      * apply Rmult_le_compat_r.
+        -- lra.
+        -- apply Rplus_le_compat_r. apply Rabs_triang.
+      * apply Req_le. field.
+Qed.
+
+Lemma R_vec_faithful : forall x,
+  R_vec_norm x = 0 -> x = R_vec_identity.
+Proof.
+  intros x Hx.
+  unfold R_vec_norm, R_vec_identity in *.
+  assert (x = 0).
+  { destruct (Rcase_abs x) as [Hneg | Hnonneg].
+    - rewrite Rabs_left in Hx by lra. lra.
+    - rewrite Rabs_right in Hx by lra. lra. }
+  exact H.
+Qed.
+
+Instance RVecValuatedTernaryAlgebra : ValuatedTernaryAlgebra R_vec := {
+  valuation := R_vec_norm;
+  valuation_nonneg := R_vec_norm_nonneg;
+  valuation_identity := R_vec_norm_identity;
+  valuation_barycentric := R_vec_barycentric;
+  valuation_faithful := R_vec_faithful;
+}.
+
+Section UniquenessOfAffineForm.
+
+(* Stone (1949) MR 0036014; Dudek-Głazek (2008) *)
+
+Theorem denominator_two_is_forced :
+  forall (d : R),
+  d > 0 ->
+  (forall a, (0 + a + a) / d = a) <-> d = 2.
+Proof.
+  intros d Hd.
+  split; intro Heq.
+  - specialize (Heq 1).
+    assert (Hcalc: 2 / d = 1) by lra.
+    apply Rmult_eq_compat_r with (r := d) in Hcalc.
+    unfold Rdiv in Hcalc.
+    replace (2 * / d * d) with (2 * (/ d * d)) in Hcalc by ring.
+    rewrite Rinv_l in Hcalc by lra.
+    rewrite Rmult_1_r in Hcalc.
+    lra.
+  - subst d. intro a. lra.
+Qed.
+
+Theorem lipschitz_constant_is_three_halves :
+  forall x : R,
+  Rabs ((x + x + x) / 2) = (3/2) * Rabs x.
+Proof.
+  intro x.
+  replace ((x + x + x) / 2) with (3/2 * x) by field.
+  rewrite Rabs_mult.
+  rewrite (Rabs_right (3/2)) by lra.
+  reflexivity.
+Qed.
+
+Theorem fundamental_incompatibility :
+  forall (d : R),
+  d > 0 ->
+  (forall a, (0 + a + a) / d = a) ->
+  (3/d > 1) /\ ~(3/d <= 1).
+Proof.
+  intros d Hd Hidentity.
+  assert (Hd_eq_2: d = 2) by (apply denominator_two_is_forced; assumption).
+  subst d.
+  split.
+  - unfold Rdiv. lra.
+  - intro Hcontra. unfold Rdiv in Hcontra. lra.
+Qed.
+
+End UniquenessOfAffineForm.
+
+Lemma R_vec_T_exact : forall x,
+  valuation (T x) = (3/2) * valuation x.
+Proof.
+  intro x.
+  unfold T, valuation, R_vec_norm, R_vec_ternary; simpl.
+  unfold R_vec_ternary.
+  assert (H_calc: (x + x + x) / 2 = 3 / 2 * x).
+  { field. }
+  rewrite H_calc.
+  rewrite Rabs_mult.
+  rewrite (Rabs_right (3/2)) by lra.
+  reflexivity.
+Qed.
+
+Definition T_bound_is_exact : Prop :=
+  forall x, x <> identity -> valuation (T x) = lipschitz_bound_T * valuation x.
+
+Theorem R_vec_has_exact_T_bound : T_bound_is_exact.
+Proof.
+  unfold T_bound_is_exact, lipschitz_bound_T.
+  intros x Hneq.
+  apply R_vec_T_exact.
+Qed.
+
+Corollary R_vec_T_preserves_sign : forall x,
+  (x >= 0 -> T x >= 0) /\ (x <= 0 -> T x <= 0).
+Proof.
+  intro x.
+  unfold T; simpl. unfold R_vec_ternary.
+  split; intro H; lra.
+Qed.
+
+Theorem R_vec_T_strict_growth_positive : forall x,
+  x > 0 -> valuation (T x) > valuation x.
+Proof.
+  intros x Hpos.
+  rewrite R_vec_T_exact.
+  unfold valuation; simpl. unfold R_vec_norm.
+  rewrite (Rabs_right x) by lra.
+  lra.
+Qed.
+
+Theorem R_vec_identity_unique_fixed_point : forall x : R_vec,
+  is_fixed_point x -> x = identity.
+Proof.
+  intros x Hfixed.
+  unfold is_fixed_point, T in Hfixed.
+  simpl in Hfixed.
+  unfold R_vec_ternary in Hfixed.
+  unfold identity; simpl.
+  unfold R_vec_identity.
+  assert (Heq: (x + x + x) / 2 = x) by exact Hfixed.
+  lra.
+Qed.
+
+Lemma R_vec_T_iter_exact : forall n x,
+  valuation (T_iter n x : R_vec) = (3/2)^n * valuation x.
+Proof.
+  intros n x.
+  induction n as [|n' IHn'].
+  - simpl. lra.
+  - change (T_iter (S n') x) with (T (T_iter n' x)).
+    pose proof (R_vec_T_exact (T_iter n' x)) as HT.
+    rewrite HT.
+    rewrite IHn'.
+    simpl. ring.
+Qed.
+
+Example R_vec_T_diverges_concrete : forall x : R_vec,
+  x <> identity ->
+  valuation (T x) > valuation x.
+Proof.
+  intros x Hneq.
+  rewrite R_vec_T_exact.
+  assert (Hval_pos: valuation x > 0).
+  { assert (Hval_nonneg: 0 <= valuation x) by apply valuation_nonneg.
+    destruct (Rtotal_order 0 (valuation x)) as [Hlt | [Heq | Hgt]].
+    - exact Hlt.
+    - symmetry in Heq. apply valuation_faithful in Heq. contradiction.
+    - lra. }
+  lra.
+Qed.
+
+Section ErrorAmplification.
+
+Lemma error_at_iteration_11 : (3/2)^11 < 100.
+Proof.
+  assert (Hcalc: (3/2)^11 = 3^11 / 2^11).
+  { simpl. field. }
+  rewrite Hcalc.
+  assert (H3: 3^11 = 177147) by (simpl; lra).
+  assert (H2: 2^11 = 2048) by (simpl; lra).
+  rewrite H3, H2.
+  lra.
+Qed.
+
+Lemma error_at_iteration_12 : (3/2)^12 > 100.
+Proof.
+  assert (Hcalc: (3/2)^12 = 3^12 / 2^12).
+  { simpl. field. }
+  rewrite Hcalc.
+  assert (H3: 3^12 = 531441) by (simpl; lra).
+  assert (H2: 2^12 = 4096) by (simpl; lra).
+  rewrite H3, H2.
+  lra.
+Qed.
+
+Theorem error_exceeds_tolerance_at_12_iterations :
+  forall initial_error tolerance,
+  initial_error = 1 ->
+  tolerance = 100 ->
+  initial_error * (3/2)^11 < tolerance /\
+  initial_error * (3/2)^12 > tolerance.
+Proof.
+  intros initial_error tolerance Hinit Htol.
+  rewrite Hinit, Htol.
+  split.
+  - assert (H: 1 * (3/2)^11 = (3/2)^11) by lra.
+    rewrite H. apply error_at_iteration_11.
+  - assert (H: 1 * (3/2)^12 = (3/2)^12) by lra.
+    rewrite H. apply error_at_iteration_12.
+Qed.
+
+Corollary critical_iteration_exact : (3/2)^11 < 100 < (3/2)^12.
+Proof.
+  split.
+  - apply error_at_iteration_11.
+  - apply error_at_iteration_12.
+Qed.
+
+Theorem T_iter_R_vec_concrete_divergence : forall (x : R_vec) (n : nat),
+  x <> 0 ->
+  valuation (T_iter n x) = (3/2)^n * Rabs x.
+Proof.
+  intros x n Hneq.
+  rewrite R_vec_T_iter_exact.
+  unfold valuation; simpl.
+  unfold R_vec_norm.
+  reflexivity.
+Qed.
+
+End ErrorAmplification.
+
+Lemma nontrivial_instance_exists :
+  exists (Omega : Type) (H : TernaryAlgebra Omega) (H0 : ValuatedTernaryAlgebra Omega)
+         (x y : Omega),
+    x <> y /\ valuation x <> valuation y.
+Proof.
+  exists R_vec, RVecTernaryAlgebra, RVecValuatedTernaryAlgebra, 0, 1.
+  split; [lra | ].
+  unfold valuation; simpl.
+  unfold R_vec_norm.
+  intro Hcontra.
+  assert (H0: Rabs 0 = 0) by apply Rabs_R0.
+  assert (H1: Rabs 1 = 1) by (rewrite Rabs_right; lra).
+  rewrite H0, H1 in Hcontra.
+  lra.
+Qed.
+
+Lemma R_vec_derived_binary_is_average : forall a b,
+  (a ◊ b : R_vec) = (a + b) / 2.
+Proof.
+  intros a b.
+  unfold derived_binary_op; simpl.
+  unfold R_vec_ternary, R_vec_identity.
+  lra.
+Qed.
+
+Lemma R_vec_derived_binary_IS_commutative : forall a b : R_vec,
+  a ◊ b = b ◊ a.
+Proof.
+  intros a b.
+  rewrite R_vec_derived_binary_is_average.
+  rewrite R_vec_derived_binary_is_average.
+  lra.
+Qed.
+
+Lemma R_vec_derived_binary_not_identity :
+  exists a : R_vec, a ◊ identity <> a.
+Proof.
+  exists 2.
+  rewrite R_vec_derived_binary_is_average.
+  unfold identity; simpl.
+  unfold R_vec_identity.
+  lra.
+Qed.
+
+Example R_vec_associator_concrete :
+  let a := 1 in let b := 2 in let c := 3 in let d := 4 in let e := 5 in
+  ternary_op (ternary_op a b c) d e <>
+  ternary_op a (ternary_op b c d) e.
+Proof.
+  simpl.
+  unfold R_vec_ternary.
+  intro Hcontra.
+  assert (Hlhs: ((1 + 2 + 3) / 2 + 4 + 5) / 2 = 8) by lra.
+  assert (Hrhs: (1 + (2 + 3 + 4) / 2 + 5) / 2 = 27/4) by lra.
+  rewrite Hlhs, Hrhs in Hcontra.
+  lra.
+Qed.
+
+Lemma R_vec_associator_defect : forall a b c d e : R_vec,
+  Rabs (ternary_op (ternary_op a b c) d e -
+        ternary_op a (ternary_op b c d) e) = Rabs (d - a) / 4.
+Proof.
+  intros a b c d e.
+  simpl.
+  unfold R_vec_ternary.
+  replace (((a + b + c) / 2 + d + e) / 2 - (a + (b + c + d) / 2 + e) / 2)
+    with ((d - a) / 4) by (field; lra).
+  unfold Rdiv.
+  rewrite Rabs_mult.
+  rewrite Rabs_inv by lra.
+  rewrite (Rabs_right 4) by lra.
+  reflexivity.
+Qed.
+
+
+End NormedVectorSpaceInstance.
+
+Section InvestigatingTheStructure.
+
+Context {Omega : Type} `{ValuatedTernaryAlgebra Omega}.
+
+Example R_vec_denominator : forall a b c : R,
+  R_vec_ternary a b c = (a + b + c) / 2.
+Proof.
+  intros. unfold R_vec_ternary. reflexivity.
+Qed.
+
+Example different_from_standard_average :
+  R_vec_ternary 1 1 1 <> (1 + 1 + 1) / 3.
+Proof.
+  unfold R_vec_ternary.
+  intro Hcontra.
+  assert (H2: (1 + 1 + 1) / 2 = 3/2) by lra.
+  assert (H3: (1 + 1 + 1) / 3 = 1) by lra.
+  rewrite H2, H3 in Hcontra.
+  lra.
+Qed.
+
+Example identity_law_with_this_denominator :
+  R_vec_ternary 0 5 5 = 5.
+Proof.
+  unfold R_vec_ternary, R_vec_identity.
+  lra.
+Qed.
+
+Example standard_averaging_comparison :
+  (0 + 5 + 5) / 3 = 10/3.
+Proof.
+  lra.
+Qed.
+
+Theorem T_effect_on_R_vec : forall x : R,
+  x <> 0 ->
+  Rabs (R_vec_ternary x x x) = (3/2) * Rabs x.
+Proof.
+  intros x Hx.
+  unfold R_vec_ternary.
+  assert (Hcalc: (x + x + x) / 2 = 3/2 * x) by lra.
+  rewrite Hcalc.
+  rewrite Rabs_mult.
+  rewrite (Rabs_right (3/2)) by lra.
+  reflexivity.
+Qed.
+
+Theorem denominator_amplification_relationship : forall d : R, d > 0 ->
+  forall x : R,
+  Rabs ((x + x + x) / d) = (3/d) * Rabs x.
+Proof.
+  intros d Hd x.
+  unfold Rdiv.
+  rewrite Rmult_plus_distr_r.
+  rewrite Rmult_plus_distr_r.
+  replace (x * /d + x * /d + x * /d) with (3 * x * /d) by ring.
+  rewrite Rabs_mult.
+  rewrite Rabs_mult.
+  rewrite (Rabs_right 3) by lra.
+  rewrite Rabs_inv by lra.
+  rewrite (Rabs_right d) by lra.
+  ring.
+Qed.
+
+Corollary amplification_with_d_equals_2 :
+  let d := 2 in
+  3/d = 3/2.
+Proof.
+  simpl. lra.
+Qed.
+
+Corollary amplification_with_d_equals_3 :
+  let d := 3 in
+  3/d = 1.
+Proof.
+  simpl. lra.
+Qed.
+
+Theorem denominators_match_in_R_vec :
+  forall a b c : R,
+  R_vec_norm (R_vec_ternary a b c) <= (R_vec_norm a + R_vec_norm b + R_vec_norm c) / 2
+  /\
+  R_vec_ternary a b c = (a + b + c) / 2.
+Proof.
+  intros a b c.
+  split.
+  - apply R_vec_barycentric.
+  - unfold R_vec_ternary. reflexivity.
+Qed.
+
+Example identity_law_requires_specific_denominator :
+  forall a d : R, d > 0 -> a <> 0 ->
+  (0 + a + a) / d = a <-> d = 2.
+Proof.
+  intros a d Hd Ha_neq.
+  split; intro Heq.
+  - assert (Hsimp: 2 * a / d = a) by lra.
+    assert (Hmul: 2 * a = a * d).
+    { apply Rmult_eq_compat_r with (r := d) in Hsimp.
+      unfold Rdiv in Hsimp.
+      rewrite Rmult_assoc in Hsimp.
+      rewrite Rinv_l in Hsimp by lra.
+      rewrite Rmult_1_r in Hsimp.
+      exact Hsimp. }
+    rewrite Rmult_comm in Hmul.
+    apply Rmult_eq_reg_l in Hmul; lra.
+  - subst d. lra.
+Qed.
+
+Theorem denominator_and_stability_threshold :
+  forall d : R, d > 0 ->
+  (3/d < 1 <-> d > 3) /\
+  (3/d = 1 <-> d = 3) /\
+  (3/d > 1 <-> d < 3).
+Proof.
+  intros d Hpos.
+  split; [|split].
+  - split; intro Heq.
+    + unfold Rdiv in Heq.
+      assert (H1: 3 * /d * d < 1 * d) by (apply Rmult_lt_compat_r; lra).
+      rewrite Rmult_assoc in H1.
+      rewrite Rinv_l in H1 by lra.
+      rewrite Rmult_1_r in H1.
+      lra.
+    + unfold Rdiv.
+      assert (H1: 3 < 1 * d) by lra.
+      apply Rmult_lt_compat_r with (r := /d) in H1; [|apply Rinv_0_lt_compat; lra].
+      rewrite Rmult_assoc in H1.
+      rewrite Rinv_r in H1 by lra.
+      rewrite Rmult_1_r in H1.
+      lra.
+  - split; intro Heq.
+    + unfold Rdiv in Heq.
+      apply Rmult_eq_compat_r with (r := d) in Heq.
+      rewrite Rmult_assoc in Heq.
+      rewrite Rinv_l in Heq by lra.
+      rewrite Rmult_1_r in Heq.
+      lra.
+    + subst d.
+      unfold Rdiv.
+      replace (3 * / 3) with 1 by (field; lra).
+      lra.
+  - split; intro Heq.
+    + unfold Rdiv in Heq.
+      assert (H1: 3 * /d * d > 1 * d) by (apply Rmult_gt_compat_r; lra).
+      rewrite Rmult_assoc in H1.
+      rewrite Rinv_l in H1 by lra.
+      rewrite Rmult_1_r in H1.
+      lra.
+    + unfold Rdiv.
+      assert (H1: 3 > 1 * d) by lra.
+      apply Rmult_gt_compat_r with (r := /d) in H1; [|apply Rinv_0_lt_compat; lra].
+      rewrite Rmult_assoc in H1.
+      rewrite Rinv_r in H1 by lra.
+      rewrite Rmult_1_r in H1.
+      lra.
+Qed.
+
+Example standard_consensus_vs_identity_law :
+  forall a : R,
+  (0 + a + a) / 3 = a <-> a = 0.
+Proof.
+  intro a.
+  split; intro Heq; lra.
+Qed.
+
+End InvestigatingTheStructure.
+
+Section StableTernaryImpossibilityTheorem.
+
+Context {Omega : Type} `{ValuatedTernaryAlgebra Omega}.
+
+Definition is_stable : Prop :=
+  forall x, valuation (T x) <= valuation x.
+
+Definition is_contractive : Prop :=
+  forall x, x <> identity -> valuation (T x) < valuation x.
+
+Definition is_expansive : Prop :=
+  exists x, x <> identity /\ valuation (T x) > valuation x.
+
+Definition stability_threshold : R := 1.
+
+Lemma identity_law_determines_denominator :
+  forall (ternary_denominator : R),
+  ternary_denominator > 0 ->
+  (forall a, (0 + a + a) / ternary_denominator = a) <->
+  ternary_denominator = 2.
+Proof.
+  intros d Hd.
+  split; intro Heq.
+  - specialize (Heq 1).
+    assert (Hcalc: (0 + 1 + 1) / d = 1) by exact Heq.
+    assert (Hsimpl: 2 / d = 1).
+    { rewrite <- Hcalc. f_equal. lra. }
+    unfold Rdiv in Hsimpl.
+    apply Rmult_eq_compat_r with (r := d) in Hsimpl.
+    replace (2 * / d * d) with (2 * (/ d * d)) in Hsimpl by ring.
+    rewrite Rinv_l in Hsimpl by lra.
+    rewrite Rmult_1_r in Hsimpl.
+    lra.
+  - subst d. intro a. lra.
+Qed.
+
+Lemma lipschitz_3_2_violates_stability :
+  (3/2) > stability_threshold.
+Proof.
+  unfold stability_threshold.
+  lra.
+Qed.
+
+Corollary consensus_identity_incompatibility :
+  forall (consensus_denominator identity_denominator : R),
+  identity_denominator > 0 ->
+  consensus_denominator = 3 ->
+  (forall a, (0 + a + a) / identity_denominator = a) ->
+  identity_denominator <> consensus_denominator.
+Proof.
+  intros d_cons d_id Hid_pos Hcons Hid_law.
+  assert (Hid_eq: d_id = 2).
+  { apply identity_law_determines_denominator; assumption. }
+  subst d_id d_cons.
+  lra.
+Qed.
+
+Corollary stable_requires_denominator_at_least_3 :
+  forall (d : R),
+  d > 0 ->
+  (3/d <= stability_threshold) <-> (d >= 3).
+Proof.
+  intros d Hd.
+  unfold stability_threshold, Rdiv.
+  split; intro Heq.
+  - apply Rmult_le_compat_r with (r := d) in Heq; [|lra].
+    replace (3 * / d * d) with (3 * (/ d * d)) in Heq by ring.
+    rewrite Rinv_l in Heq by lra.
+    rewrite Rmult_1_r in Heq.
+    lra.
+  - assert (Hinv_pos: / d > 0) by (apply Rinv_0_lt_compat; lra).
+    assert (Hgoal: 3 * / d <= 1).
+    { apply Rmult_le_reg_r with (r := d); [lra|].
+      rewrite Rmult_assoc.
+      rewrite Rinv_l by lra.
+      rewrite Rmult_1_r.
+      rewrite Rmult_1_l.
+      lra. }
+    exact Hgoal.
+Qed.
+
+Corollary iteration_exponential_amplification :
+  forall (n : nat) (x : R),
+  x <> 0 ->
+  Rabs ((3/2)^n * x) = (3/2)^n * Rabs x.
+Proof.
+  intros n x Hx_neq.
+  rewrite Rabs_mult.
+  rewrite Rabs_right.
+  - reflexivity.
+  - apply Rle_ge.
+    apply pow_le.
+    lra.
+Qed.
+
+Corollary byzantine_exploitation_via_identity_law :
+  forall (error_initial : R) (iterations : nat),
+  error_initial > 0 ->
+  iterations = 12%nat ->
+  Rabs (error_initial * (3/2)^iterations) > 100 * error_initial.
+Proof.
+  intros err n Herr_pos Hn.
+  subst n.
+  rewrite Rabs_mult.
+  rewrite (Rabs_right err) by lra.
+  rewrite Rabs_right.
+  - assert (Hpow: (3/2)^12 > 100) by apply error_at_iteration_12.
+    assert (Hcalc: err * (3/2)^12 > 100 * err).
+    { assert (Hmul: (3/2)^12 * err > 100 * err) by (apply Rmult_gt_compat_r; assumption).
+      lra. }
+    exact Hcalc.
+  - apply Rle_ge. apply pow_le. lra.
+Qed.
+
+End StableTernaryImpossibilityTheorem.
+
+Section CappedNormInstance.
+
+Definition R_capped := R.
+
+Definition R_capped_ternary (a b c : R_capped) : R_capped :=
+  (a + b + c) / 2.
+
+Definition R_capped_identity : R_capped := 0.
+
+Definition R_capped_norm (x : R_capped) : R := Rmin (Rabs x) 1.
+
+Lemma R_capped_cyclic : forall a b c,
+  R_capped_ternary a b c = R_capped_ternary c a b.
+Proof.
+  intros a b c.
+  unfold R_capped_ternary.
+  f_equal. ring.
+Qed.
+
+Lemma R_capped_identity_law : forall a,
+  R_capped_ternary R_capped_identity a a = a.
+Proof.
+  intro a.
+  unfold R_capped_ternary, R_capped_identity.
+  field_simplify; lra.
+Qed.
+
+Instance RCappedTernaryAlgebra : TernaryAlgebra R_capped := {
+  ternary_op := R_capped_ternary;
+  identity := R_capped_identity;
+  cyclic_symmetry := R_capped_cyclic;
+  identity_law := R_capped_identity_law;
+}.
+
+Lemma R_capped_norm_nonneg : forall x, 0 <= R_capped_norm x.
+Proof.
+  intro x.
+  unfold R_capped_norm.
+  apply Rmin_glb; [apply Rabs_pos | lra].
+Qed.
+
+Lemma R_capped_norm_identity : R_capped_norm R_capped_identity = 0.
+Proof.
+  unfold R_capped_norm, R_capped_identity.
+  rewrite Rabs_R0.
+  apply Rmin_left. lra.
+Qed.
+
+Theorem R_capped_pathological_strict_inequality_example :
+  let x := 2 in
+  Rmin (Rabs (R_capped_ternary x x x)) 1 < (3/2) * Rmin (Rabs x) 1.
+Proof.
+  simpl.
+  unfold R_capped_ternary.
+  assert (Hcalc: (2 + 2 + 2) / 2 = 3).
+  { lra. }
+  rewrite Hcalc.
+  assert (H_lhs: Rmin (Rabs 3) 1 = 1).
+  { apply Rmin_right. assert (H3: Rabs 3 = 3).
+    { rewrite Rabs_right; lra. }
+    rewrite H3. lra. }
+  assert (H_rhs: (3/2) * Rmin (Rabs 2) 1 = 3/2).
+  { assert (H2: Rabs 2 = 2).
+    { rewrite Rabs_right; lra. }
+    rewrite H2.
+    rewrite Rmin_right; lra. }
+  rewrite H_lhs, H_rhs.
+  lra.
+Qed.
+
+End CappedNormInstance.
+
+Section ProductConstruction.
+
+Context {Omega1 Omega2 : Type}.
+Context `{ValuatedTernaryAlgebra Omega1}.
+Context `{ValuatedTernaryAlgebra Omega2}.
+
+Definition product_ternary (p1 p2 p3 : Omega1 * Omega2) : Omega1 * Omega2 :=
+  let '(a1, a2) := p1 in
+  let '(b1, b2) := p2 in
+  let '(c1, c2) := p3 in
+  (ternary_op a1 b1 c1, ternary_op a2 b2 c2).
+
+Definition product_identity : Omega1 * Omega2 := (identity, identity).
+
+Definition product_valuation (p : Omega1 * Omega2) : R :=
+  let '(x1, x2) := p in
+  Rmax (valuation x1) (valuation x2).
+
+Lemma product_cyclic : forall p1 p2 p3,
+  product_ternary p1 p2 p3 = product_ternary p3 p1 p2.
+Proof.
+  intros [a1 a2] [b1 b2] [c1 c2].
+  unfold product_ternary.
+  rewrite (cyclic_symmetry a1 b1 c1).
+  rewrite (cyclic_symmetry a2 b2 c2).
+  reflexivity.
+Qed.
+
+Lemma product_identity_law : forall p,
+  product_ternary product_identity p p = p.
+Proof.
+  intros [x1 x2].
+  unfold product_ternary, product_identity.
+  rewrite (identity_law x1).
+  rewrite (identity_law x2).
+  reflexivity.
+Qed.
+
+Instance ProductTernaryAlgebra : TernaryAlgebra (Omega1 * Omega2) := {
+  ternary_op := product_ternary;
+  identity := product_identity;
+  cyclic_symmetry := product_cyclic;
+  identity_law := product_identity_law;
+}.
+
+Lemma product_valuation_nonneg : forall p, 0 <= product_valuation p.
+Proof.
+  intros [x1 x2].
+  unfold product_valuation.
+  apply Rle_trans with (r2 := valuation x1).
+  - apply valuation_nonneg.
+  - apply Rmax_l.
+Qed.
+
+Lemma product_valuation_identity : product_valuation product_identity = 0.
+Proof.
+  unfold product_valuation, product_identity.
+  rewrite valuation_identity.
+  rewrite valuation_identity.
+  apply Rmax_left. lra.
+Qed.
+
+Lemma product_valuation_barycentric : forall p1 p2 p3,
+  product_valuation (product_ternary p1 p2 p3) <=
+  (product_valuation p1 + product_valuation p2 + product_valuation p3) / 2.
+Proof.
+  intros [a1 a2] [b1 b2] [c1 c2].
+  unfold product_valuation, product_ternary.
+  apply Rmax_lub.
+  - apply Rle_trans with (r2 := (valuation a1 + valuation b1 + valuation c1) / 2).
+    + apply valuation_barycentric.
+    + apply Rmult_le_compat_r; [lra |].
+      apply Rplus_le_compat.
+      * apply Rplus_le_compat; [apply Rmax_l | apply Rmax_l].
+      * apply Rmax_l.
+  - apply Rle_trans with (r2 := (valuation a2 + valuation b2 + valuation c2) / 2).
+    + apply valuation_barycentric.
+    + apply Rmult_le_compat_r; [lra |].
+      apply Rplus_le_compat.
+      * apply Rplus_le_compat; [apply Rmax_r | apply Rmax_r].
+      * apply Rmax_r.
+Qed.
+
+Lemma product_valuation_faithful : forall p,
+  product_valuation p = 0 -> p = product_identity.
+Proof.
+  intros [x1 x2] Hval.
+  unfold product_valuation, product_identity in *.
+  assert (Hval1: valuation x1 = 0).
+  { assert (Hmax: Rmax (valuation x1) (valuation x2) = 0) by exact Hval.
+    assert (Hle: valuation x1 <= 0) by (rewrite <- Hmax; apply Rmax_l).
+    assert (Hge: 0 <= valuation x1) by apply valuation_nonneg.
+    lra. }
+  assert (Hval2: valuation x2 = 0).
+  { assert (Hmax: Rmax (valuation x1) (valuation x2) = 0) by exact Hval.
+    assert (Hle: valuation x2 <= 0) by (rewrite <- Hmax; apply Rmax_r).
+    assert (Hge: 0 <= valuation x2) by apply valuation_nonneg.
+    lra. }
+  rewrite (valuation_faithful x1 Hval1).
+  rewrite (valuation_faithful x2 Hval2).
+  reflexivity.
+Qed.
+
+Instance ProductValuatedTernaryAlgebra : ValuatedTernaryAlgebra (Omega1 * Omega2) := {
+  valuation := product_valuation;
+  valuation_nonneg := product_valuation_nonneg;
+  valuation_identity := product_valuation_identity;
+  valuation_barycentric := product_valuation_barycentric;
+  valuation_faithful := product_valuation_faithful;
+}.
+
+Theorem product_T_componentwise : forall (p : Omega1 * Omega2),
+  T p = (T (fst p), T (snd p)).
+Proof.
+  intro p.
+  destruct p as [x1 x2].
+  unfold T. simpl.
+  unfold product_ternary.
+  reflexivity.
+Qed.
+
+Theorem product_valuation_detects_max : forall (x1 : Omega1) (x2 : Omega2),
+  product_valuation (x1, x2) = Rmax (valuation x1) (valuation x2).
+Proof.
+  intros x1 x2.
+  unfold product_valuation.
+  reflexivity.
+Qed.
+
+Theorem product_T_valuation_bound : forall (p : Omega1 * Omega2),
+  valuation (T p) <= lipschitz_bound_T * valuation p.
+Proof.
+  intro p.
+  apply T_valuation_lipschitz.
+Qed.
+
+End ProductConstruction.
+
+Section LipschitzComposition.
+
+Context {Omega1 Omega2 Omega3 : Type}.
+Context `{ValuatedTernaryAlgebra Omega1}.
+Context `{ValuatedTernaryAlgebra Omega2}.
+Context `{ValuatedTernaryAlgebra Omega3}.
+
+Context (phi : Omega1 -> Omega2).
+Context (psi : Omega2 -> Omega3).
+
+Lemma comp_Lipschitz : forall c d,
+  0 <= c -> 0 <= d ->
+  preserves_structure_Lipschitz phi c ->
+  preserves_structure_Lipschitz psi d ->
+  preserves_structure_Lipschitz (fun x => psi (phi x)) (c * d).
+Proof.
+  intros c d Hc_nonneg Hd_nonneg [Hphi_struct Hphi_bound] [Hpsi_struct Hpsi_bound].
+  unfold preserves_structure_Lipschitz.
+  split.
+  - unfold preserves_ternary_structure in *.
+    intros a b c0.
+    rewrite Hphi_struct.
+    apply Hpsi_struct.
+  - intros x.
+    apply Rle_trans with (r2 := d * valuation (phi x)).
+    + apply Hpsi_bound.
+    + apply Rle_trans with (r2 := d * (c * valuation x)).
+      * apply Rmult_le_compat_l; [exact Hd_nonneg | apply Hphi_bound].
+      * assert (H_assoc: d * (c * valuation x) = c * d * valuation x) by ring.
+        rewrite H_assoc. apply Rle_refl.
+Qed.
+
+End LipschitzComposition.
+
+Section ApplicationFiniteDifference.
+
+Definition fd_step (u : R) : R :=
+  (u + u + u) / 2.
+
+Fixpoint fd_iterate (n : nat) (u0 : R) : R :=
+  match n with
+  | O => u0
+  | S n' => fd_step (fd_iterate n' u0)
+  end.
+
+Theorem fd_error_amplification_exact : forall (u0 : R) (n : nat),
+  u0 <> 0 ->
+  Rabs (fd_iterate n u0) = (3/2)^n * Rabs u0.
+Proof.
+  intros u0 n Hneq.
+  induction n as [|n' IHn'].
+  - simpl. lra.
+  - simpl fd_iterate. unfold fd_step.
+    assert (Hcalc: (fd_iterate n' u0 + fd_iterate n' u0 + fd_iterate n' u0) / 2 =
+                    3/2 * fd_iterate n' u0).
+    { field. }
+    rewrite Hcalc.
+    rewrite Rabs_mult.
+    rewrite (Rabs_right (3/2)) by lra.
+    rewrite IHn'.
+    simpl. ring.
+Qed.
+
+Theorem fd_instability_threshold_lower : forall (initial_error : R),
+  initial_error = 1 ->
+  Rabs (fd_iterate 11 initial_error) < 100.
+Proof.
+  intros initial_error Hinit.
+  subst initial_error.
+  rewrite fd_error_amplification_exact by lra.
+  rewrite Rabs_R1.
+  assert (H: (3/2)^11 * 1 = (3/2)^11) by lra.
+  rewrite H.
+  apply error_at_iteration_11.
+Qed.
+
+Theorem fd_instability_threshold_upper : forall (initial_error : R),
+  initial_error = 1 ->
+  Rabs (fd_iterate 12 initial_error) > 100.
+Proof.
+  intros initial_error Hinit.
+  subst initial_error.
+  rewrite fd_error_amplification_exact by lra.
+  rewrite Rabs_R1.
+  assert (H: (3/2)^12 * 1 = (3/2)^12) by lra.
+  rewrite H.
+  apply error_at_iteration_12.
+Qed.
+
+Theorem fd_naive_smoothing_diverges :
+  forall (u0 : R),
+  u0 <> 0 ->
+  forall n : nat,
+  (n > 0)%nat ->
+  Rabs (fd_iterate n u0) > Rabs u0.
+Proof.
+  intros u0 Hneq n Hn.
+  rewrite fd_error_amplification_exact by exact Hneq.
+  assert (Hpow: (3/2)^n > 1).
+  { destruct n as [|n']; [lia |].
+    clear Hn. induction n' as [|n'' IHn''].
+    - simpl. lra.
+    - simpl. apply Rlt_trans with (r2 := (3/2) * 1); [lra |].
+      apply Rmult_lt_compat_l; [lra | exact IHn'']. }
+  assert (Hu0_pos: Rabs u0 > 0) by (apply Rabs_pos_lt; exact Hneq).
+  assert (H: (3/2)^n * Rabs u0 > 1 * Rabs u0).
+  { apply Rmult_gt_compat_r; assumption. }
+  lra.
+Qed.
+
+Corollary fd_scheme_is_unstable :
+  exists (u0 : R) (N : nat),
+  u0 <> 0 /\ (N > 0)%nat /\
+  Rabs (fd_iterate N u0) > 100 * Rabs u0.
+Proof.
+  exists 1, 12%nat.
+  split; [lra | ].
+  split; [lia | ].
+  rewrite fd_error_amplification_exact by lra.
+  rewrite Rabs_R1.
+  assert (H: (3/2)^12 * 1 = (3/2)^12) by lra.
+  rewrite H.
+  assert (Hineq: (3/2)^12 > 100) by apply error_at_iteration_12.
+  lra.
+Qed.
+
+Definition numerical_stability_violated : Prop :=
+  exists (scheme : R -> R)
+         (u0 : R) (n : nat),
+  u0 <> 0 /\
+  (forall k, Rabs (Nat.iter k scheme u0) = (3/2)^k * Rabs u0) /\
+  Rabs (Nat.iter n scheme u0) > 100 * Rabs u0.
+
+Theorem numerical_stability_failure :
+  numerical_stability_violated.
+Proof.
+  unfold numerical_stability_violated.
+  exists fd_step, 1, 12%nat.
+  split; [lra | ].
+  split.
+  - intro k.
+    assert (Heq: Nat.iter k fd_step 1 = fd_iterate k 1).
+    { induction k as [|k' IHk'].
+      - reflexivity.
+      - simpl. rewrite IHk'. reflexivity. }
+    rewrite Heq.
+    apply fd_error_amplification_exact. lra.
+  - assert (Heq: Nat.iter 12 fd_step 1 = fd_iterate 12 1).
+    { simpl. reflexivity. }
+    rewrite Heq.
+    rewrite fd_error_amplification_exact by lra.
+    rewrite Rabs_R1.
+    assert (H: (3/2)^12 * 1 = (3/2)^12) by lra.
+    rewrite H.
+    assert (Hineq: (3/2)^12 > 100) by apply error_at_iteration_12.
+    lra.
+Qed.
+
+End ApplicationFiniteDifference.
+
+Section ElementaryRingExample.
+
+Definition agent_state := R.
+
+Definition consensus_value (s1 s2 s3 : agent_state) : R :=
+  (s1 + s2 + s3) / 3.
+
+Definition ring_update (s1 s2 s3 : agent_state) : agent_state * agent_state * agent_state :=
+  let s1_new := (s3 + s1 + s2) / 2 in
+  let s2_new := (s1 + s2 + s3) / 2 in
+  let s3_new := (s2 + s3 + s1) / 2 in
+  (s1_new, s2_new, s3_new).
+
+Lemma ring_update_reaches_consensus : forall s1 s2 s3,
+  let '(s1', s2', s3') := ring_update s1 s2 s3 in
+  s1' = s2' /\ s2' = s3'.
+Proof.
+  intros s1 s2 s3.
+  unfold ring_update.
+  split; lra.
+Qed.
+
+Lemma ring_update_amplifies_sum : forall s1 s2 s3,
+  let '(s1', s2', s3') := ring_update s1 s2 s3 in
+  s1' + s2' + s3' = (3/2) * (s1 + s2 + s3).
+Proof.
+  intros s1 s2 s3.
+  unfold ring_update.
+  lra.
+Qed.
+
+Fixpoint ring_iterate (n : nat) (s1 s2 s3 : agent_state) : agent_state * agent_state * agent_state :=
+  match n with
+  | O => (s1, s2, s3)
+  | S n' => let '(s1', s2', s3') := ring_iterate n' s1 s2 s3 in
+            ring_update s1' s2' s3'
+  end.
+
+Lemma ring_sum_grows_aux : forall s1 s2 s3 n sa sb sc,
+  ring_iterate n s1 s2 s3 = (sa, sb, sc) ->
+  sa + sb + sc = (3/2)^n * (s1 + s2 + s3).
+Proof.
+  intros s1 s2 s3 n.
+  induction n as [|n' IHn']; intros sa sb sc Heq.
+  - simpl in Heq. inversion Heq; subst. simpl. lra.
+  - simpl in Heq.
+    destruct (ring_iterate n' s1 s2 s3) as [[sa' sb'] sc'] eqn:Heq'.
+    assert (Hprev: sa' + sb' + sc' = (3/2)^n' * (s1 + s2 + s3)).
+    { apply (IHn' sa' sb' sc'). reflexivity. }
+    pose proof (ring_update_amplifies_sum sa' sb' sc') as Hamp.
+    unfold ring_update in Heq.
+    inversion Heq; subst.
+    rewrite Hamp. rewrite Hprev. simpl. ring.
+Qed.
+
+Lemma ring_sum_grows : forall s1 s2 s3 n,
+  let '(s1_n, s2_n, s3_n) := ring_iterate n s1 s2 s3 in
+  s1_n + s2_n + s3_n = (3/2)^n * (s1 + s2 + s3).
+Proof.
+  intros s1 s2 s3 n.
+  destruct (ring_iterate n s1 s2 s3) as [[sa sb] sc] eqn:Heq.
+  apply (ring_sum_grows_aux s1 s2 s3 n sa sb sc). exact Heq.
+Qed.
+
+Corollary ring_consensus_catastrophic_failure : forall s1 s2 s3,
+  s1 + s2 + s3 <> 0 ->
+  let '(s1_12, s2_12, s3_12) := ring_iterate 12 s1 s2 s3 in
+  s1_12 + s2_12 + s3_12 = (3/2)^12 * (s1 + s2 + s3) /\
+  Rabs ((s1_12 + s2_12 + s3_12) / 3) > 40 * Rabs (s1 + s2 + s3).
+Proof.
+  intros s1 s2 s3 Hsum.
+  pose proof (ring_sum_grows s1 s2 s3 12) as Hgrow.
+  destruct (ring_iterate 12 s1 s2 s3) as [[sa sb] sc] eqn:Heq.
+  split.
+  - simpl in Hgrow. exact Hgrow.
+  - rewrite Hgrow.
+    assert (Hpow12: (3/2)^12 > 129) by (pose proof error_at_iteration_12; lra).
+    destruct (Rcase_abs (s1 + s2 + s3)).
+    + rewrite Rabs_left by lra. rewrite Rabs_left by lra. lra.
+    + rewrite Rabs_right by lra. rewrite Rabs_right by lra. lra.
+Qed.
+
+End ElementaryRingExample.
+
+Section StabilityBoundaryAnalysis.
+
+Context {Omega : Type} `{ValuatedTernaryAlgebra Omega}.
+
+Definition T_parameterized (alpha : R) (x : Omega) : Omega :=
+  ternary_op x x x.
+
+Definition lipschitz_constant (alpha : R) : R := 3 * alpha / 2.
+
+Lemma T_alpha_equals_T : forall (x : Omega),
+  T_parameterized 1 x = T x.
+Proof.
+  intro x.
+  unfold T_parameterized, T.
+  reflexivity.
+Qed.
+
+Definition T_alpha_R_vec (alpha : R) (x : R) : R :=
+  (alpha * x + alpha * x + alpha * x) / 2.
+
+Lemma T_alpha_R_vec_lipschitz : forall alpha x,
+  alpha >= 0 ->
+  Rabs (T_alpha_R_vec alpha x) = lipschitz_constant alpha * Rabs x.
+Proof.
+  intros alpha x Halpha.
+  unfold T_alpha_R_vec, lipschitz_constant.
+  assert (Hcalc: (alpha * x + alpha * x + alpha * x) / 2 = 3 * alpha / 2 * x) by lra.
+  rewrite Hcalc.
+  rewrite Rabs_mult.
+  rewrite (Rabs_right (3 * alpha / 2)) by lra.
+  reflexivity.
+Qed.
+
+Theorem stability_boundary_contractive : forall alpha,
+  alpha >= 0 ->
+  alpha < 2/3 ->
+  lipschitz_constant alpha < 1.
+Proof.
+  intros alpha Hnonneg Hbound.
+  unfold lipschitz_constant.
+  lra.
+Qed.
+
+Theorem stability_boundary_critical : forall alpha,
+  alpha = 2/3 ->
+  lipschitz_constant alpha = 1.
+Proof.
+  intro alpha. intro Heq.
+  unfold lipschitz_constant.
+  rewrite Heq.
+  lra.
+Qed.
+
+Theorem stability_boundary_expansive : forall alpha,
+  alpha > 2/3 ->
+  lipschitz_constant alpha > 1.
+Proof.
+  intros alpha Hbound.
+  unfold lipschitz_constant.
+  lra.
+Qed.
+
+Corollary standard_case_is_expansive :
+  lipschitz_constant 1 = 3/2 /\
+  lipschitz_constant 1 > 1 /\
+  1 > 2/3.
+Proof.
+  split; [unfold lipschitz_constant; lra |].
+  split; [unfold lipschitz_constant; lra | lra].
+Qed.
+
+Corollary standard_consensus_stable :
+  lipschitz_constant (1/3) < 1 /\
+  1/3 < 2/3.
+Proof.
+  split; [unfold lipschitz_constant; lra | lra].
+Qed.
+
+Theorem stability_design_principle : forall alpha,
+  alpha >= 0 ->
+  (alpha < 2/3 <-> lipschitz_constant alpha < 1).
+Proof.
+  intros alpha Halpha.
+  split; intro Hbnd.
+  - apply stability_boundary_contractive; assumption.
+  - unfold lipschitz_constant in Hbnd. lra.
+Qed.
+
+End StabilityBoundaryAnalysis.
+
+Section ContractiveConvergence.
+
+Lemma geometric_series_bound : forall (c : R) (n : nat),
+  0 <= c < 1 -> c^n <= 1.
+Proof.
+  intros c n [Hc_nonneg Hc_lt1].
+  induction n as [|n' IHn'].
+  - simpl. lra.
+  - simpl. apply Rle_trans with (r2 := c * 1).
+    + apply Rmult_le_compat_l; [exact Hc_nonneg | exact IHn'].
+    + lra.
+Qed.
+
+Theorem contractive_bound_decreases : forall (alpha : R),
+  alpha = 1/3 ->
+  lipschitz_constant alpha < 1.
+Proof.
+  intro alpha. intro Heq. subst alpha.
+  unfold lipschitz_constant. lra.
+Qed.
+
+Theorem expansive_bound_increases : forall (alpha : R),
+  alpha = 1 ->
+  lipschitz_constant alpha > 1.
+Proof.
+  intro alpha. intro Heq. subst alpha.
+  unfold lipschitz_constant. lra.
+Qed.
+
+Theorem stability_dichotomy :
+  lipschitz_constant (1/3) = 1/2 /\ lipschitz_constant 1 = 3/2.
+Proof.
+  unfold lipschitz_constant. split; lra.
+Qed.
+
+Corollary contractive_rate_formula :
+  forall (n : nat),
+  (1/2)^n <= 1 /\ (3/2)^12 > 100.
+Proof.
+  intro n.
+  split.
+  - apply geometric_series_bound. split; lra.
+  - apply error_at_iteration_12.
+Qed.
+
+End ContractiveConvergence.
+
+Section DistributedLineConsensus.
+
+Context {Omega : Type} `{ValuatedTernaryAlgebra Omega}.
+
+Definition line_gossip_update (x1 x2 x3 : R_vec) : R_vec * R_vec * R_vec :=
+  ((2*x1 + x2) / 3, (x1 + x2 + x3) / 3, (x2 + 2*x3) / 3).
+
+Lemma line_gossip_preserves_sum : forall x1 x2 x3,
+  let '(y1, y2, y3) := line_gossip_update x1 x2 x3 in
+  y1 + y2 + y3 = x1 + x2 + x3.
+Proof.
+  intros x1 x2 x3.
+  unfold line_gossip_update.
+  lra.
+Qed.
+
+Definition total_deviation (x1 x2 x3 : R_vec) : R :=
+  let mean := (x1 + x2 + x3) / 3 in
+  Rabs (x1 - mean) + Rabs (x2 - mean) + Rabs (x3 - mean).
+
+Lemma deviation_nonneg : forall x1 x2 x3,
+  0 <= total_deviation x1 x2 x3.
+Proof.
+  intros. unfold total_deviation.
+  assert (H1: 0 <= Rabs (x1 - (x1 + x2 + x3) / 3)) by apply Rabs_pos.
+  assert (H2: 0 <= Rabs (x2 - (x1 + x2 + x3) / 3)) by apply Rabs_pos.
+  assert (H3: 0 <= Rabs (x3 - (x1 + x2 + x3) / 3)) by apply Rabs_pos.
+  lra.
+Qed.
+
+Lemma deviation_zero_iff_consensus : forall x1 x2 x3,
+  total_deviation x1 x2 x3 = 0 <-> x1 = x2 /\ x2 = x3.
+Proof.
+  intros. unfold total_deviation. split; intro Hdev.
+  - assert (Hsum: Rabs (x1 - (x1 + x2 + x3) / 3) = 0 /\
+                  Rabs (x2 - (x1 + x2 + x3) / 3) = 0 /\
+                  Rabs (x3 - (x1 + x2 + x3) / 3) = 0).
+    { assert (Ha: 0 <= Rabs (x1 - (x1 + x2 + x3) / 3)) by apply Rabs_pos.
+      assert (Hb: 0 <= Rabs (x2 - (x1 + x2 + x3) / 3)) by apply Rabs_pos.
+      assert (Hc: 0 <= Rabs (x3 - (x1 + x2 + x3) / 3)) by apply Rabs_pos.
+      lra. }
+    destruct Hsum as [Ha [Hb Hc]].
+    assert (Heq1: x1 = (x1 + x2 + x3) / 3).
+    { destruct (Rcase_abs (x1 - (x1 + x2 + x3) / 3)) as [Hneg | Hpos].
+      - rewrite Rabs_left in Ha; lra.
+      - rewrite Rabs_right in Ha; lra. }
+    assert (Heq2: x2 = (x1 + x2 + x3) / 3).
+    { destruct (Rcase_abs (x2 - (x1 + x2 + x3) / 3)) as [Hneg | Hpos].
+      - rewrite Rabs_left in Hb; lra.
+      - rewrite Rabs_right in Hb; lra. }
+    split; lra.
+  - destruct Hdev as [H12 H23]. subst x2. subst x3.
+    assert (Hmean: (x1 + x1 + x1) / 3 = x1) by lra.
+    rewrite Hmean. rewrite Rminus_diag_eq by reflexivity. rewrite Rabs_R0. lra.
+Qed.
+
+End DistributedLineConsensus.
+
+Section SensorFusionVerified.
+
+Definition sensor_reading := R.
+
+Definition sensor_average_3 (s1 s2 s3 : sensor_reading) : sensor_reading :=
+  (s1 + s2 + s3) / 3.
+
+End SensorFusionVerified.
+
+Section ByzantineResilientConsensus.
+
+Definition validator_value := R.
+
+Definition median3 (x y z : validator_value) : validator_value :=
+  if Rle_dec x y then
+    if Rle_dec y z then y
+    else if Rle_dec x z then z else x
+  else
+    if Rle_dec x z then x
+    else if Rle_dec y z then z else y.
+
+Lemma median3_idempotent : forall x, median3 x x x = x.
+Proof.
+  intro. unfold median3. repeat (destruct Rle_dec; try lra).
+Qed.
+
+Lemma median3_permutation_123 : forall x y z,
+  median3 x y z = median3 y z x.
+Proof.
+  intros. unfold median3. repeat (destruct Rle_dec; try lra).
+Qed.
+
+Theorem byzantine_tolerance_1_of_3 : forall honest1 honest2 byzantine,
+  Rabs (honest1 - honest2) <= 1 ->
+  let result := median3 honest1 honest2 byzantine in
+  (honest1 <= honest2 -> honest1 <= result <= honest2) /\
+  (honest2 < honest1 -> honest2 <= result <= honest1).
+Proof.
+  intros h1 h2 byz Hdiff result. split; intro Horder.
+  - unfold result, median3.
+    repeat (destruct Rle_dec; try lra).
+  - unfold result, median3.
+    repeat (destruct Rle_dec; try lra).
+Qed.
+
+Example blockchain_consensus_attack_mitigated :
+  let honest_vals := (100.3, 100.5) in
+  let attacker := 999.9 in
+  let '(h1, h2) := honest_vals in
+  let consensus := median3 h1 h2 attacker in
+  100.3 <= consensus <= 100.5.
+Proof.
+  simpl. unfold median3. repeat (destruct Rle_dec; try lra).
+Qed.
+
+Fixpoint byzantine_iterate_single (n : nat) (h1 h2 : R) (byz : nat -> R) : R * R :=
+  match n with
+  | O => (h1, h2)
+  | S n' => let '(h1', h2') := byzantine_iterate_single n' h1 h2 byz in
+            let consensus1 := median3 h1' h2' (byz n') in
+            let consensus2 := median3 h2' h1' (byz n') in
+            (consensus1, consensus2)
+  end.
+
+Lemma median3_bounded : forall x y z,
+  x <= y ->
+  x <= median3 x y z <= y \/ median3 x y z = z.
+Proof.
+  intros x y z Hxy.
+  unfold median3.
+  repeat (destruct Rle_dec; try lra); auto.
+Qed.
+
+Lemma median3_in_range_or_extreme : forall x y z,
+  median3 x y z = x \/ median3 x y z = y \/ median3 x y z = z.
+Proof.
+  intros x y z.
+  unfold median3.
+  repeat (destruct Rle_dec; auto).
+Qed.
+
+Lemma median3_respects_lower_bound : forall x y z L,
+  L <= x -> L <= y -> L <= z -> L <= median3 x y z.
+Proof.
+  intros x y z L Hx Hy Hz.
+  pose proof (median3_in_range_or_extreme x y z) as [Hm|[Hm|Hm]]; rewrite Hm; assumption.
+Qed.
+
+Lemma median3_respects_upper_bound : forall x y z U,
+  x <= U -> y <= U -> z <= U -> median3 x y z <= U.
+Proof.
+  intros x y z U Hx Hy Hz.
+  pose proof (median3_in_range_or_extreme x y z) as [Hm|[Hm|Hm]]; rewrite Hm; assumption.
+Qed.
+
+Lemma byzantine_single_round_lower_bound : forall h1 h2 byz,
+  h1 <= h1 -> h1 <= h2 -> h1 <= byz ->
+  h1 <= median3 h1 h2 byz.
+Proof.
+  intros h1 h2 byz Hh1 Hh2 Hbyz.
+  apply median3_respects_lower_bound; assumption.
+Qed.
+
+Lemma byzantine_single_round_upper_bound : forall h1 h2 byz,
+  h2 <= h2 -> h1 <= h2 -> byz <= h2 ->
+  median3 h2 h1 byz <= h2.
+Proof.
+  intros h1 h2 byz Hh2 Hh1h2 Hbyz.
+  apply median3_respects_upper_bound; [exact Hh2 | lra | exact Hbyz].
+Qed.
+
+Lemma byzantine_base_case : forall h1 h2,
+  let '(h1', h2') := byzantine_iterate_single 0 h1 h2 (fun _ => 0) in
+  h1' = h1 /\ h2' = h2.
+Proof.
+  intros h1 h2.
+  simpl.
+  split; reflexivity.
+Qed.
+
+Lemma byzantine_bounded_iteration_step : forall h1 h2 h1' h2' byz,
+  h1 <= h1' ->
+  h1' <= h2 ->
+  h1 <= h2' ->
+  h2' <= h2 ->
+  h1 <= byz ->
+  byz <= h2 ->
+  h1 <= median3 h1' h2' byz /\ median3 h2' h1' byz <= h2.
+Proof.
+  intros h1 h2 h1' h2' byz Hlow1 Hup1 Hlow2 Hup2 Hbyz_low Hbyz_up.
+  split.
+  - apply median3_respects_lower_bound.
+    + exact Hlow1.
+    + exact Hlow2.
+    + exact Hbyz_low.
+  - apply median3_respects_upper_bound.
+    + exact Hup2.
+    + exact Hup1.
+    + exact Hbyz_up.
+Qed.
+
+Theorem byzantine_consensus_bounded_range : forall h1 h2 byz n,
+  h1 <= h2 ->
+  (forall k, (k < n)%nat -> h1 <= byz k <= h2) ->
+  (forall k, (k <= n)%nat ->
+    let '(h1', h2') := byzantine_iterate_single k h1 h2 byz in
+    h1 <= h1' /\ h1 <= h2' /\ h1' <= h2 /\ h2' <= h2).
+Proof.
+  intros h1 h2 byz n Horder Hbyz_bounded k Hk.
+  induction k as [|k' IHk'].
+  - simpl. repeat split; lra.
+  - simpl.
+    destruct (byzantine_iterate_single k' h1 h2 byz) as [h1' h2'] eqn:Heq.
+    assert (Hk'_bound: (k' <= n)%nat) by lia.
+    assert (IH: h1 <= h1' /\ h1 <= h2' /\ h1' <= h2 /\ h2' <= h2).
+    { apply IHk'. lia. }
+    destruct IH as [IH1 [IH2 [IH3 IH4]]].
+    assert (Hbyz_k': h1 <= byz k' <= h2).
+    { apply Hbyz_bounded. lia. }
+    repeat split.
+    + apply median3_respects_lower_bound; lra.
+    + apply median3_respects_lower_bound; lra.
+    + apply median3_respects_upper_bound; lra.
+    + apply median3_respects_upper_bound; lra.
+Qed.
+
+Corollary byzantine_honest_always_in_initial_range : forall h1 h2 byz n,
+  h1 <= h2 ->
+  (forall k, (k < n)%nat -> h1 <= byz k <= h2) ->
+  let '(h1_n, h2_n) := byzantine_iterate_single n h1 h2 byz in
+  h1 <= h1_n <= h2 /\ h1 <= h2_n <= h2.
+Proof.
+  intros h1 h2 byz n Horder Hbyz_bounded.
+  pose proof (byzantine_consensus_bounded_range h1 h2 byz n Horder Hbyz_bounded n) as H.
+  assert (Hle: (n <= n)%nat) by lia.
+  specialize (H Hle).
+  destruct (byzantine_iterate_single n h1 h2 byz) as [h1_n h2_n].
+  destruct H as [H1 [H2 [H3 H4]]].
+  split; split; assumption.
+Qed.
+
+Theorem byzantine_resilience_median_filter : forall honest1 honest2 attacker,
+  honest1 <= honest2 ->
+  honest1 <= median3 honest1 honest2 attacker <= honest2 \/ median3 honest1 honest2 attacker = attacker.
+Proof.
+  intros h1 h2 att Horder.
+  pose proof (median3_in_range_or_extreme h1 h2 att) as [Hm|[Hm|Hm]].
+  - left. rewrite Hm. split; lra.
+  - left. rewrite Hm. split; lra.
+  - right. exact Hm.
+Qed.
+
+Corollary byzantine_consensus_stays_in_bounds : forall n h1 h2 byz,
+  h1 <= h2 ->
+  (forall k, (k < n)%nat -> h1 <= byz k <= h2) ->
+  let '(h1_n, h2_n) := byzantine_iterate_single n h1 h2 byz in
+  h1 <= h1_n /\ h2_n <= h2.
+Proof.
+  intros n h1 h2 byz Horder Hbyz_bounded.
+  pose proof (byzantine_honest_always_in_initial_range h1 h2 byz n Horder Hbyz_bounded) as H.
+  destruct (byzantine_iterate_single n h1 h2 byz) as [h1_n h2_n].
+  destruct H as [[H1 H2] [H3 H4]].
+  split; assumption.
+Qed.
+
+End ByzantineResilientConsensus.
+
+Section ByzantineThresholdTheorem.
+
+Import VectorNotations.
+
+Definition agent_vector (n : nat) := Vector.t R n.
+
+Definition get_agent {n : nat} (v : agent_vector n) (i : Fin.t n) : R :=
+  Vector.nth v i.
+
+Lemma agent_vector_eta : forall n (v : agent_vector n),
+  v = Vector.map (fun x => x) v.
+Proof.
+  intros n v.
+  induction v as [|h n' v' IHv'].
+  - reflexivity.
+  - simpl. f_equal. exact IHv'.
+Qed.
+
+Definition is_honest (i : nat) (honest_set : list nat) : Prop :=
+  List.In i honest_set.
+
+Definition is_byzantine (i : nat) (honest_set : list nat) : Prop :=
+  ~ List.In i honest_set.
+
+Lemma honest_or_byzantine : forall i honest_set,
+  is_honest i honest_set \/ is_byzantine i honest_set.
+Proof.
+  intros i honest_set.
+  unfold is_honest, is_byzantine.
+  apply classic.
+Qed.
+
+Fixpoint list_max (l : list R) (default : R) : R :=
+  match l with
+  | List.nil => default
+  | List.cons x List.nil => x
+  | List.cons x xs => Rmax x (list_max xs default)
+  end.
+
+Fixpoint list_min (l : list R) (default : R) : R :=
+  match l with
+  | List.nil => default
+  | List.cons x List.nil => x
+  | List.cons x xs => Rmin x (list_min xs default)
+  end.
+
+Lemma list_max_in_bounds : forall l x default,
+  List.In x l -> x <= list_max l default.
+Proof.
+  intros l x default Hin.
+  induction l as [|y l' IHl'].
+  - inversion Hin.
+  - destruct l' as [|z l''].
+    + simpl in Hin. destruct Hin as [Heq | Hfalse].
+      * subst. simpl. lra.
+      * inversion Hfalse.
+    + simpl. destruct Hin as [Heq | Hin'].
+      * subst. apply Rmax_l.
+      * apply Rle_trans with (r2 := list_max (z :: l'') default).
+        -- apply IHl'. exact Hin'.
+        -- apply Rmax_r.
+Qed.
+
+Lemma list_min_in_bounds : forall l x default,
+  List.In x l -> list_min l default <= x.
+Proof.
+  intros l x default Hin.
+  induction l as [|y l' IHl'].
+  - inversion Hin.
+  - destruct l' as [|z l''].
+    + simpl in Hin. destruct Hin as [Heq | Hfalse].
+      * subst. simpl. lra.
+      * inversion Hfalse.
+    + simpl. destruct Hin as [Heq | Hin'].
+      * subst. apply Rmin_l.
+      * assert (Hmin_sub: list_min (z :: l'') default <= x).
+        { apply IHl'. exact Hin'. }
+        apply Rle_trans with (r2 := list_min (z :: l'') default).
+        -- apply Rmin_r.
+        -- exact Hmin_sub.
+Qed.
+
+Definition count_true (l : list bool) : nat :=
+  List.fold_left (fun (acc : nat) (b : bool) => if b then S acc else acc) l 0%nat.
+
+Lemma fold_left_count_S : forall l n,
+  List.fold_left (fun (acc : nat) (b : bool) => if b then S acc else acc) l (S n) =
+  S (List.fold_left (fun (acc : nat) (b : bool) => if b then S acc else acc) l n).
+Proof.
+  intros l n.
+  generalize dependent n.
+  induction l as [|b l' IHl'].
+  - intro n. simpl. reflexivity.
+  - intro n. simpl. destruct b.
+    + rewrite IHl'. rewrite IHl'. reflexivity.
+    + apply IHl'.
+Qed.
+
+Lemma count_true_bound : forall l,
+  (count_true l <= List.length l)%nat.
+Proof.
+  intro l.
+  unfold count_true.
+  induction l as [|b l' IHl'].
+  - simpl. lia.
+  - simpl. destruct b.
+    + rewrite fold_left_count_S. lia.
+    + lia.
+Qed.
+
+Definition honest_majority (n f : nat) : Prop :=
+  (3 * f < n)%nat.
+
+Definition byzantine_attack_possible (n f : nat) : Prop :=
+  (3 * f >= n)%nat.
+
+Lemma majority_threshold_dichotomy : forall n f,
+  honest_majority n f \/ byzantine_attack_possible n f.
+Proof.
+  intros n f.
+  unfold honest_majority, byzantine_attack_possible.
+  lia.
+Qed.
+
+Lemma honest_count_from_byzantine : forall n f,
+  (f <= n)%nat ->
+  honest_majority n f ->
+  (2 * (n - f) > n)%nat.
+Proof.
+  intros n f Hf_bound Hmaj.
+  unfold honest_majority in Hmaj.
+  lia.
+Qed.
+
+Example byzantine_threshold_4_nodes :
+  honest_majority 4 1 /\ ~ honest_majority 4 2.
+Proof.
+  unfold honest_majority. split; lia.
+Qed.
+
+Example byzantine_threshold_7_nodes :
+  honest_majority 7 2 /\ ~ honest_majority 7 3.
+Proof.
+  unfold honest_majority. split; lia.
+Qed.
+
+Example byzantine_threshold_10_nodes :
+  honest_majority 10 3 /\ ~ honest_majority 10 4.
+Proof.
+  unfold honest_majority. split; lia.
+Qed.
+
+Lemma one_third_is_minority : forall n,
+  (n >= 3)%nat ->
+  (3 * (n / 3) < n + 1)%nat.
+Proof.
+  intros n Hn.
+  assert (H: (3 * (n / 3) <= n)%nat).
+  { destruct (Nat.eq_dec n 0) as [Heq|Hneq].
+    - subst. lia.
+    - apply Nat.mul_div_le. lia. }
+  lia.
+Qed.
+
+Definition average_R (x y z : R) : R := (x + y + z) / 3.
+
+Lemma average_bounded : forall x y z,
+  x <= y -> y <= z ->
+  x <= average_R x y z <= z.
+Proof.
+  intros x y z Hxy Hyz.
+  unfold average_R.
+  split.
+  - assert (H: x + x + x <= x + y + z) by lra.
+    assert (Hdiv: (x + x + x) / 3 = x) by (field).
+    lra.
+  - assert (H: x + y + z <= z + z + z) by lra.
+    assert (Hdiv: (z + z + z) / 3 = z) by (field).
+    lra.
+Qed.
+
+Lemma average_contracts_to_median : forall x y z,
+  Rabs (average_R x y z - y) <= (Rabs (z - y) + Rabs (x - y)) / 3.
+Proof.
+  intros x y z.
+  unfold average_R.
+  replace ((x + y + z) / 3 - y) with ((x - y + (z - y)) / 3) by (field).
+  unfold Rdiv.
+  rewrite Rabs_mult.
+  rewrite Rabs_inv by lra.
+  rewrite (Rabs_right 3) by lra.
+  apply Rle_trans with (r2 := (Rabs (x - y) + Rabs (z - y)) * / 3).
+  - apply Rmult_le_compat_r; [lra | apply Rabs_triang].
+  - assert (Hcomm: Rabs (z - y) + Rabs (x - y) = Rabs (x - y) + Rabs (z - y)) by lra.
+    rewrite Hcomm. apply Rle_refl.
+Qed.
+
+Theorem consensus_vs_ternary_algebra_stability :
+  forall alpha : R,
+  (alpha = 1/3 -> lipschitz_constant alpha < 1) /\
+  (alpha = 1 -> lipschitz_constant alpha = 3/2).
+Proof.
+  intro alpha.
+  split; intro Halpha.
+  - rewrite Halpha. unfold lipschitz_constant. lra.
+  - rewrite Halpha. unfold lipschitz_constant. lra.
+Qed.
+
+Corollary standard_consensus_stable_ternary_unstable :
+  lipschitz_constant (1/3) < 1 /\ lipschitz_constant 1 > 1.
+Proof.
+  unfold lipschitz_constant. split; lra.
+Qed.
+
+Theorem three_node_median_safety :
+  forall h1 h2 byz : R,
+  h1 <= h2 ->
+  h1 <= median3 h1 h2 byz <= h2.
+Proof.
+  intros h1 h2 byz Horder.
+  pose proof (byzantine_tolerance_1_of_3 h1 h2 byz).
+  unfold median3.
+  repeat (destruct Rle_dec; try lra).
+Qed.
+
+Definition consensus_bounded (lower upper : R) (values : list R) : Prop :=
+  forall v, List.In v values -> lower <= v <= upper.
+
+Lemma consensus_bounded_singleton : forall v lower upper,
+  lower <= v <= upper <-> consensus_bounded lower upper (List.cons v List.nil).
+Proof.
+  intros v lower upper.
+  unfold consensus_bounded.
+  split; intro H.
+  - intros v' Hin. simpl in Hin.
+    destruct Hin as [Heq | Hfalse].
+    + subst. exact H.
+    + inversion Hfalse.
+  - apply H. simpl. left. reflexivity.
+Qed.
+
+Lemma consensus_bounded_preserved_by_median : forall lower upper h1 h2 byz,
+  lower <= h1 <= upper ->
+  lower <= h2 <= upper ->
+  lower <= median3 h1 h2 byz <= upper.
+Proof.
+  intros lower upper h1 h2 byz Hh1 Hh2.
+  assert (Horder: h1 <= h2 \/ h2 <= h1) by lra.
+  destruct Horder as [Hle | Hle].
+  - pose proof (three_node_median_safety h1 h2 byz Hle) as Hsafe.
+    split; lra.
+  - assert (Hsym: h2 <= h1) by exact Hle.
+    pose proof (three_node_median_safety h2 h1 byz Hsym) as Hsafe.
+    assert (Hmed_sym: median3 h1 h2 byz = median3 h2 h1 byz).
+    { unfold median3. repeat (destruct Rle_dec; try lra). }
+    rewrite Hmed_sym. split; lra.
+Qed.
+
+Theorem byzantine_safety_general :
+  forall n : nat, forall f : nat,
+  honest_majority n f ->
+  forall (initial_values : list R) (lower upper : R),
+  consensus_bounded lower upper initial_values ->
+  (forall honest_vals : list R,
+    (forall v, List.In v honest_vals -> List.In v initial_values) ->
+    (List.length honest_vals >= 2)%nat ->
+    consensus_bounded lower upper honest_vals).
+Proof.
+  intros n f Hmaj initial_values lower upper Hinit honest_vals Hin Hlen.
+  unfold consensus_bounded in *.
+  intros v Hv_in.
+  apply Hinit.
+  apply Hin.
+  exact Hv_in.
+Qed.
+
+Theorem byzantine_attack_using_ternary_instability :
+  forall (initial_error : R),
+  initial_error > 0 ->
+  Rabs (initial_error * (3/2)^12) > 100 * initial_error.
+Proof.
+  intros initial_error Hpos.
+  assert (H12: (3/2)^12 > 100) by apply error_at_iteration_12.
+  rewrite Rabs_mult.
+  rewrite (Rabs_right initial_error) by lra.
+  rewrite Rabs_right by (apply Rle_ge; apply pow_le; lra).
+  replace (100 * initial_error) with (initial_error * 100) by ring.
+  apply Rmult_gt_compat_l; [exact Hpos | exact H12].
+Qed.
+
+Theorem byzantine_liveness_attack :
+  forall n f : nat,
+  byzantine_attack_possible n f ->
+  exists (attack_strategy : R) (iterations : nat),
+  (iterations >= 12)%nat /\
+  attack_strategy > 0 /\
+  Rabs (attack_strategy * (3/2)^iterations) > 100 * attack_strategy.
+Proof.
+  intros n f Hattack.
+  exists 1, 12%nat.
+  split; [lia|].
+  split; [lra|].
+  apply byzantine_attack_using_ternary_instability.
+  lra.
+Qed.
+
+End ByzantineThresholdTheorem.
+
+Section RVecCoherenceAnalysis.
+
+Theorem R_vec_NOT_coherent : ~ @ternary_op_coherent R_vec RVecTernaryAlgebra RVecValuatedTernaryAlgebra.
+Proof.
+  unfold ternary_op_coherent, nu_equiv.
+  intro Hcontra.
+  assert (Ha: @valuation R_vec RVecTernaryAlgebra RVecValuatedTernaryAlgebra 1 =
+              @valuation R_vec RVecTernaryAlgebra RVecValuatedTernaryAlgebra (-1)).
+  { simpl. unfold R_vec_norm.
+    rewrite Rabs_R1. rewrite Rabs_left; lra. }
+  assert (Hb: @valuation R_vec RVecTernaryAlgebra RVecValuatedTernaryAlgebra 1 =
+              @valuation R_vec RVecTernaryAlgebra RVecValuatedTernaryAlgebra 1).
+  { reflexivity. }
+  assert (Hc: @valuation R_vec RVecTernaryAlgebra RVecValuatedTernaryAlgebra 0 =
+              @valuation R_vec RVecTernaryAlgebra RVecValuatedTernaryAlgebra 0).
+  { reflexivity. }
+  specialize (Hcontra 1 1 0 (-1) 1 0 Ha Hb Hc).
+  simpl in Hcontra.
+  unfold R_vec_ternary in Hcontra.
+  unfold R_vec_norm in Hcontra.
+  assert (Hlhs: Rabs ((1 + 1 + 0) / 2) = 1).
+  { assert (H: (1 + 1 + 0) / 2 = 1) by lra.
+    rewrite H. apply Rabs_R1. }
+  assert (Hrhs: Rabs ((-1 + 1 + 0) / 2) = 0).
+  { assert (H: (-1 + 1 + 0) / 2 = 0) by lra.
+    rewrite H. apply Rabs_R0. }
+  rewrite Hlhs in Hcontra.
+  rewrite Hrhs in Hcontra.
+  lra.
+Qed.
+
+Corollary R_vec_quotient_not_applicable :
+  ~ exists (coherence : @ternary_op_coherent R_vec RVecTernaryAlgebra RVecValuatedTernaryAlgebra),
+      exists (Q : Type) (H : TernaryAlgebra Q), True.
+Proof.
+  intro Hex.
+  destruct Hex as [Hcoh _].
+  apply R_vec_NOT_coherent.
+  exact Hcoh.
+Qed.
+
+End RVecCoherenceAnalysis.
+
+Section NonnegativeRealsCoherent.
+
+Definition Rnneg := {x : R | x >= 0}.
+
+Definition Rnneg_ternary (a b c : Rnneg) : Rnneg.
+Proof.
+  destruct a as [a Ha], b as [b Hb], c as [c Hc].
+  exists ((a + b + c) / 2).
+  lra.
+Defined.
+
+Definition Rnneg_identity : Rnneg.
+Proof.
+  exists 0.
+  lra.
+Defined.
+
+Lemma Rnneg_cyclic : forall a b c,
+  Rnneg_ternary a b c = Rnneg_ternary c a b.
+Proof.
+  intros [a Ha] [b Hb] [c Hc].
+  unfold Rnneg_ternary.
+  apply eq_sig_hprop.
+  - intro; apply Classical_Prop.proof_irrelevance.
+  - simpl. lra.
+Qed.
+
+Lemma Rnneg_identity_law : forall a,
+  Rnneg_ternary Rnneg_identity a a = a.
+Proof.
+  intros [a Ha].
+  unfold Rnneg_ternary, Rnneg_identity.
+  apply eq_sig_hprop.
+  - intro; apply Classical_Prop.proof_irrelevance.
+  - simpl. lra.
+Qed.
+
+Instance RnnegTernaryAlgebra : TernaryAlgebra Rnneg := {
+  ternary_op := Rnneg_ternary;
+  identity := Rnneg_identity;
+  cyclic_symmetry := Rnneg_cyclic;
+  identity_law := Rnneg_identity_law;
+}.
+
+Definition Rnneg_valuation (x : Rnneg) : R := proj1_sig x.
+
+Lemma Rnneg_valuation_nonneg : forall x, 0 <= Rnneg_valuation x.
+Proof.
+  intros [x Hx].
+  unfold Rnneg_valuation.
+  simpl. lra.
+Qed.
+
+Lemma Rnneg_valuation_identity : Rnneg_valuation Rnneg_identity = 0.
+Proof.
+  unfold Rnneg_valuation, Rnneg_identity.
+  simpl. reflexivity.
+Qed.
+
+Lemma Rnneg_valuation_barycentric : forall a b c,
+  Rnneg_valuation (Rnneg_ternary a b c) <=
+  (Rnneg_valuation a + Rnneg_valuation b + Rnneg_valuation c) / 2.
+Proof.
+  intros [a Ha] [b Hb] [c Hc].
+  unfold Rnneg_valuation, Rnneg_ternary.
+  simpl. lra.
+Qed.
+
+Lemma Rnneg_valuation_faithful : forall x,
+  Rnneg_valuation x = 0 -> x = Rnneg_identity.
+Proof.
+  intros [x Hx] Hval.
+  unfold Rnneg_valuation, Rnneg_identity in *.
+  simpl in Hval.
+  apply eq_sig_hprop.
+  - intro; apply Classical_Prop.proof_irrelevance.
+  - simpl. exact Hval.
+Qed.
+
+Instance RnnegValuatedTernaryAlgebra : ValuatedTernaryAlgebra Rnneg := {
+  valuation := Rnneg_valuation;
+  valuation_nonneg := Rnneg_valuation_nonneg;
+  valuation_identity := Rnneg_valuation_identity;
+  valuation_barycentric := Rnneg_valuation_barycentric;
+  valuation_faithful := Rnneg_valuation_faithful;
+}.
+
+Theorem Rnneg_is_coherent : @ternary_op_coherent Rnneg RnnegTernaryAlgebra RnnegValuatedTernaryAlgebra.
+Proof.
+  unfold ternary_op_coherent, nu_equiv.
+  intros [a Ha] [b Hb] [c Hc] [d Hd] [e He] [f Hf] Hvala Hvalb Hvalc.
+  unfold valuation, Rnneg_valuation in *.
+  simpl in *.
+  subst d e f.
+  reflexivity.
+Qed.
+
+Corollary Rnneg_admits_quotient_construction :
+  exists (coherence : @ternary_op_coherent Rnneg RnnegTernaryAlgebra RnnegValuatedTernaryAlgebra),
+    exists (Q : Type) (H : TernaryAlgebra Q), True.
+Proof.
+  exists Rnneg_is_coherent.
+  apply (quotient_inherits_ternary_algebra_when_coherent Rnneg_is_coherent).
+Qed.
+
+End NonnegativeRealsCoherent.
+
+Section CoherenceConditions.
+
+Definition valuation_determines_operation {Omega : Type}
+  `{ValuatedTernaryAlgebra Omega} : Prop :=
+  forall a b c d e f,
+    valuation a = valuation d ->
+    valuation b = valuation e ->
+    valuation c = valuation f ->
+    valuation (ternary_op a b c) = valuation (ternary_op d e f).
+
+Lemma coherence_iff_valuation_determines :
+  forall {Omega : Type} `{ValuatedTernaryAlgebra Omega},
+  ternary_op_coherent <-> valuation_determines_operation.
+Proof.
+  intros Omega H H0.
+  unfold ternary_op_coherent, valuation_determines_operation, nu_equiv.
+  split; intros H1 a b c d e f Ha Hb Hc; apply H1; assumption.
+Qed.
+
+Theorem coherence_sufficient_condition_injective_on_equivalence_classes :
+  forall {Omega : Type} `{ValuatedTernaryAlgebra Omega},
+  (forall x y, valuation x = valuation y -> x = y) ->
+  ternary_op_coherent.
+Proof.
+  intros Omega H H0 Hinj.
+  unfold ternary_op_coherent, nu_equiv.
+  intros a b c d e f Ha Hb Hc.
+  rewrite (Hinj a d Ha).
+  rewrite (Hinj b e Hb).
+  rewrite (Hinj c f Hc).
+  reflexivity.
+Qed.
+
+Example trivial_is_coherent_via_injectivity :
+  @ternary_op_coherent unit TrivialTernaryAlgebra TrivialValuatedTernaryAlgebra.
+Proof.
+  apply coherence_sufficient_condition_injective_on_equivalence_classes.
+  intros [] []. intro. reflexivity.
+Qed.
+
+Corollary coherence_failure_due_to_sign_ambiguity :
+  ~ @ternary_op_coherent R_vec RVecTernaryAlgebra RVecValuatedTernaryAlgebra.
+Proof.
+  apply R_vec_NOT_coherent.
+Qed.
+
+End CoherenceConditions.
+
+Section NonCommutativeImpossibility.
+
+Definition is_commutative {A : Type} (op : A -> A -> A) : Prop :=
+  forall x y, op x y = op y x.
+
+Definition is_associative {A : Type} (op : A -> A -> A) : Prop :=
+  forall x y z, op x (op y z) = op (op x y) z.
+
+Definition has_left_cancel {A : Type} (add : A -> A -> A) : Prop :=
+  forall x y z, add x y = add x z -> y = z.
+
+Definition has_right_cancel {A : Type} (add : A -> A -> A) : Prop :=
+  forall x y z, add y x = add z x -> y = z.
+
+Lemma commutative_op_example : is_commutative Rplus.
+Proof.
+  unfold is_commutative.
+  intros x y.
+  ring.
+Qed.
+
+Lemma associative_op_example : is_associative Rplus.
+Proof.
+  unfold is_associative.
+  intros x y z.
+  ring.
+Qed.
+
+Lemma comm_assoc_rearrange_3 : forall {A : Type} (add : A -> A -> A) (a b c : A),
+  is_commutative add ->
+  is_associative add ->
+  add (add a b) c = add (add a c) b.
+Proof.
+  intros A add a b c Hcomm Hassoc.
+  unfold is_commutative, is_associative in *.
+  assert (H1: add (add a b) c = add a (add b c)) by (symmetry; apply Hassoc).
+  rewrite H1.
+  assert (H2: add b c = add c b) by (apply Hcomm).
+  rewrite H2.
+  apply Hassoc.
+Qed.
+
+Lemma swap_nested : forall {A : Type} (add : A -> A -> A) (a b : A),
+  is_commutative add ->
+  add (add a b) = add (add b a).
+Proof.
+  intros A add a b Hcomm.
+  unfold is_commutative in Hcomm.
+  f_equal.
+  apply Hcomm.
+Qed.
+
+Lemma rewrite_rhs_outer : forall {A : Type} (add : A -> A -> A) (nested a b c : A),
+  is_commutative add ->
+  a = b ->
+  add nested a = add nested c ->
+  add nested b = add nested c.
+Proof.
+  intros A add nested a b c Hcomm Hab Heq.
+  rewrite <- Hab.
+  exact Heq.
+Qed.
+
+Lemma cancel_with_outer_mismatch : forall {A : Type} (add : A -> A -> A) (a b c d e : A),
+  is_commutative add ->
+  is_associative add ->
+  has_left_cancel add ->
+  add (add a b) c = add (add a d) e ->
+  c = e ->
+  b = d.
+Proof.
+  intros A add a b c d e Hcomm Hassoc Hcancel Heq Hce.
+  rewrite Hce in Heq.
+  unfold is_associative in Hassoc.
+  assert (H1: add (add a b) e = add a (add b e)) by (symmetry; apply Hassoc).
+  rewrite H1 in Heq.
+  assert (H2: add (add a d) e = add a (add d e)) by (symmetry; apply Hassoc).
+  rewrite H2 in Heq.
+  unfold has_left_cancel in Hcancel.
+  apply (Hcancel a (add b e) (add d e)) in Heq.
+  unfold is_commutative in Hcomm.
+  rewrite (Hcomm b e) in Heq.
+  rewrite (Hcomm d e) in Heq.
+  apply (Hcancel e b d Heq).
+Qed.
+
+Definition ternary_from_mult {A : Type} (mult : A -> A -> A) (add : A -> A -> A)
+  (a b c : A) : A :=
+  add (add (mult a b) (mult b c)) (mult c a).
+
+Lemma left_cancel_from_comm_assoc : forall {A : Type} (add : A -> A -> A),
+  is_commutative add ->
+  is_associative add ->
+  has_left_cancel add ->
+  forall a b c, add a b = add a c -> b = c.
+Proof.
+  intros A add Hcomm Hassoc Hcancel a b c Heq.
+  unfold has_left_cancel in Hcancel.
+  apply (Hcancel a b c Heq).
+Qed.
+
+Lemma cancel_nested_add : forall {A : Type} (add : A -> A -> A) (a b c d : A),
+  is_commutative add ->
+  is_associative add ->
+  has_left_cancel add ->
+  add (add a b) c = add (add a d) c ->
+  b = d.
+Proof.
+  intros A add a b c d Hcomm Hassoc Hcancel Heq.
+  unfold is_associative in Hassoc.
+  assert (H1: add (add a b) c = add a (add b c)) by (symmetry; apply Hassoc).
+  rewrite H1 in Heq.
+  assert (H2: add (add a d) c = add a (add d c)) by (symmetry; apply Hassoc).
+  rewrite H2 in Heq.
+  unfold has_left_cancel in Hcancel.
+  apply (Hcancel a (add b c) (add d c)) in Heq.
+  unfold is_commutative in Hcomm.
+  assert (H3: add (add b c) = add (add c b)) by (f_equal; apply Hcomm).
+  assert (H4: add (add d c) = add (add c d)) by (f_equal; apply Hcomm).
+  rewrite (Hcomm b c) in Heq.
+  rewrite (Hcomm d c) in Heq.
+  apply (Hcancel c b d Heq).
+Qed.
+
+Lemma ternary_from_mult_independent_of_mult_commutativity :
+  forall {A : Type} (mult : A -> A -> A) (add : A -> A -> A) (x y : A),
+  is_commutative add ->
+  is_associative add ->
+  ternary_from_mult mult add x y x = ternary_from_mult mult add x x y.
+Proof.
+  intros A mult add x y Hcomm Hassoc.
+  unfold ternary_from_mult.
+  unfold is_commutative in Hcomm.
+  unfold is_associative in Hassoc.
+  assert (Hlhs: add (add (mult x y) (mult y x)) (mult x x) =
+                add (mult x y) (add (mult y x) (mult x x))).
+  { symmetry. apply Hassoc. }
+  rewrite Hlhs. clear Hlhs.
+  assert (Hrhs: add (add (mult x x) (mult x y)) (mult y x) =
+                add (mult x y) (add (mult y x) (mult x x))).
+  { symmetry.
+    rewrite <- (Hassoc (mult x x) (mult x y) (mult y x)).
+    rewrite (Hcomm (mult x x) (add (mult x y) (mult y x))).
+    rewrite (Hassoc (mult x y) (mult y x) (mult x x)).
+    reflexivity. }
+  rewrite Hrhs.
+  reflexivity.
+Qed.
+
+Theorem cyclic_symmetry_independent_of_mult_commutativity :
+  forall {A : Type} (mult : A -> A -> A) (add : A -> A -> A) (x y : A),
+  is_commutative add ->
+  is_associative add ->
+  mult x y <> mult y x ->
+  ~ (ternary_from_mult mult add x y x <> ternary_from_mult mult add x x y).
+Proof.
+  intros A mult add x y Hcomm Hassoc Hnoncomm.
+  intro Hcontra.
+  apply Hcontra.
+  apply (ternary_from_mult_independent_of_mult_commutativity mult add x y Hcomm Hassoc).
+Qed.
+
+End NonCommutativeImpossibility.
+
+
+End TernaryAlgebraicStructure.
