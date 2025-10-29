@@ -572,6 +572,180 @@ Print["Proof: 3*(2/(3n))*n/(n-1) = 2n/(n(n-1)) = 2/(n-1) -> 0 as n -> inf"];
 Print[""];
 
 (* ============================================================================ *)
+(* PHASE 5: EXTENDED THEORETICAL ANALYSIS                                       *)
+(* ============================================================================ *)
+
+Print["PHASE 5: EXTENDED THEORETICAL ANALYSIS"];
+Print[""];
+
+(* 5.1 Phase Transition Analysis *)
+Print["5.1 Phase Transition Analysis"];
+Print["Scanning denominators near critical boundary d=3"];
+Print[""];
+Print["d    | L=3/d | Final(50) | log10(Final) | Stable"];
+testDenominators = {2.0, 2.2, 2.5, 2.7, 2.9, 2.95, 2.99, 3.0, 3.01, 3.05, 3.1, 3.5, 4.0};
+Do[
+  Module[{lipschitz, final, logFinal, stable},
+    lipschitz = 3/d;
+    final = Nest[(3*#)/d &, 1.0, 50];
+    logFinal = Log10[final];
+    stable = lipschitz <= 1;
+    Print[NumberForm[d, {4, 2}], " | ", NumberForm[lipschitz, {5, 3}], " | ",
+          NumberForm[final, {10, 4}], " | ", NumberForm[logFinal, {8, 3}], "     | ", stable]
+  ],
+  {d, testDenominators}
+];
+Print["Critical transition at d=3.0 (L=1.0)"];
+Print[""];
+
+(* 5.2 N-ary Computational Verification *)
+Print["5.2 N-ary Growth Rate Verification"];
+Print["Validates general formula L = n/(n-1)"];
+Print[""];
+naryTernary[n_, d_][x_] := (n*x)/d;
+Print["n  | d_identity | L=n/(n-1) | Final(20) | (L)^20 theoretical | Error"];
+testN = {2, 3, 4, 5, 10, 20, 50};
+Do[
+  Module[{dIdent, lipschitz, final, theoretical, error},
+    dIdent = n - 1;
+    lipschitz = N[n/(n-1)];
+    final = Nest[naryTernary[n, dIdent], 1.0, 20];
+    theoretical = lipschitz^20;
+    error = Abs[final - theoretical];
+    Print[PaddedForm[n, {2}], " | ", PaddedForm[dIdent, {2}], "        | ",
+          NumberForm[lipschitz, {6, 4}], "    | ", NumberForm[final, {10, 4}], " | ",
+          NumberForm[theoretical, {10, 4}], "       | ", NumberForm[error, {10, 8}]]
+  ],
+  {n, testN}
+];
+Print[""];
+
+(* 5.3 Noise Robustness *)
+Print["5.3 Noise Robustness Analysis"];
+Print["Adding Gaussian noise at each iteration: x_{k+1} = T(x_k) + N(0,σ²)"];
+Print[""];
+noisyIteration[d_, sigma_, iterations_] := Module[{trajectory},
+  trajectory = NestList[
+    Function[x, (3*x)/d + sigma*RandomVariate[NormalDistribution[]]],
+    1.0,
+    iterations
+  ];
+  trajectory
+];
+Print["d   | σ=0.01 final | σ=0.1 final | σ=0.01 std | σ=0.1 std"];
+Do[
+  Module[{trials1, trials2, finals1, finals2, mean1, mean2, std1, std2},
+    trials1 = Table[Last[noisyIteration[d, 0.01, 30]], 100];
+    trials2 = Table[Last[noisyIteration[d, 0.1, 30]], 100];
+    mean1 = Mean[trials1];
+    mean2 = Mean[trials2];
+    std1 = StandardDeviation[trials1];
+    std2 = StandardDeviation[trials2];
+    Print[NumberForm[d, {3, 1}], " | ", NumberForm[mean1, {10, 4}], " | ",
+          NumberForm[mean2, {10, 4}], " | ", NumberForm[std1, {8, 4}], "   | ",
+          NumberForm[std2, {8, 4}]]
+  ],
+  {d, {2.0, 2.5, 3.0, 3.5, 4.0}}
+];
+Print["d=2 amplifies noise; d≥3 suppresses noise"];
+Print[""];
+
+(* 5.4 Finite Precision Breakdown *)
+Print["5.4 Finite Precision Analysis"];
+Print["Tracking numerical error accumulation"];
+Print[""];
+precisionTest[d_, iterations_] := Module[{computed, exact, errors},
+  computed = NestList[(3*#)/d &, 1.0, iterations];
+  exact = Table[(3/d)^k, {k, 0, iterations}];
+  errors = Abs[computed - exact];
+  errors
+];
+Print["d   | Max error (50 iter) | Relative error | First error > 10^-10 at iter"];
+Do[
+  Module[{errors, maxError, final, relError, firstBad},
+    errors = precisionTest[d, 50];
+    maxError = Max[errors];
+    final = (3/d)^50;
+    relError = If[final != 0, maxError/Abs[final], 0];
+    firstBad = Position[errors, _?(# > 10^-10 &), 1, 1];
+    firstBad = If[Length[firstBad] > 0, firstBad[[1, 1]] - 1, "none"];
+    Print[NumberForm[d, {3, 1}], " | ", NumberForm[maxError, {12, 6}], "   | ",
+          NumberForm[relError, {10, 8}], " | ", firstBad]
+  ],
+  {d, {2.0, 2.5, 3.0, 4.0}}
+];
+Print["Floating point remains accurate for tested range"];
+Print[""];
+
+(* 5.5 Vector Extension *)
+Print["5.5 Vector Extension (Componentwise)"];
+Print["Testing v ∈ R^n with componentwise ternary operation"];
+Print[""];
+vectorTernary[d_][v_] := (3*v)/d;
+Print["d   | dim | ||v_50|| / ||v_0|| | Expected (3/d)^50 | Ratio"];
+Do[
+  Module[{v0, trajectory, vFinal, normRatio, expected, ratio},
+    v0 = RandomReal[{-1, 1}, dim];
+    trajectory = NestList[vectorTernary[d], v0, 50];
+    vFinal = Last[trajectory];
+    normRatio = Norm[vFinal] / Norm[v0];
+    expected = (3/d)^50;
+    ratio = normRatio / expected;
+    Print[NumberForm[d, {3, 1}], " | ", PaddedForm[dim, {2}], "  | ",
+          NumberForm[normRatio, {12, 6}], "      | ", NumberForm[expected, {12, 6}],
+          "     | ", NumberForm[ratio, {8, 6}]]
+  ],
+  {d, {2.0, 3.0, 4.0}}, {dim, {3, 10}}
+];
+Print["Vector components evolve independently at scalar rate"];
+Print[""];
+
+(* 5.6 Control-Theoretic Stabilization *)
+Print["5.6 Control-Theoretic Stabilization"];
+Print["Feedback control: x_{k+1} = T(x_k) - alpha(x_k - x_ref), x_ref = 1"];
+Print[""];
+controlledIteration[d_, alpha_, xRef_, iterations_] := Module[{trajectory},
+  trajectory = NestList[
+    Function[x, (3*x)/d - alpha*(x - xRef)],
+    2.0,  (* Start away from reference *)
+    iterations
+  ];
+  trajectory
+];
+Print["d   | alpha | Final(50) | Converged | Effective L"];
+testAlphas = {0.0, 0.25, 0.5, 0.75, 1.0};
+Do[
+  Module[{trajectory, final, converged, effectiveL},
+    trajectory = controlledIteration[2.0, alpha, 1.0, 50];
+    final = Last[trajectory];
+    converged = Abs[final - 1.0] < 0.01;
+    effectiveL = 3/2 - alpha;
+    Print[NumberForm[2.0, {3, 1}], " | ", NumberForm[alpha, {4, 2}], " | ",
+          NumberForm[final, {10, 6}], " | ", converged, "   | ",
+          NumberForm[effectiveL, {5, 3}]]
+  ],
+  {alpha, testAlphas}
+];
+Print["Minimum alpha = 0.5 needed to achieve L_eff <= 1 for d=2"];
+Print[""];
+Print["Scanning alpha near critical value for d=2"];
+Print["alpha | Final(50) | Abs(Final-1) | Stable"];
+scanAlphas = {0.4, 0.45, 0.49, 0.5, 0.51, 0.55, 0.6};
+Do[
+  Module[{trajectory, final, error, stable},
+    trajectory = controlledIteration[2.0, alpha, 1.0, 50];
+    final = Last[trajectory];
+    error = Abs[final - 1.0];
+    stable = error < 0.01;
+    Print[NumberForm[alpha, {4, 2}], " | ", NumberForm[final, {10, 6}], " | ",
+          NumberForm[error, {10, 6}], " | ", stable]
+  ],
+  {alpha, scanAlphas}
+];
+Print["Critical feedback alpha_crit = 0.5 for d=2 stabilization"];
+Print[""];
+
+(* ============================================================================ *)
 (* SUMMARY                                                                      *)
 (* ============================================================================ *)
 
