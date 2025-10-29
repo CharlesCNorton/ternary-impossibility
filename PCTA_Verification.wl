@@ -338,8 +338,12 @@ Print[""];
 
 (* 4.4 Non-Commutative Extensions *)
 Print["4.4 Non-Commutative Extensions"];
+Print[""];
+
+(* 4.4a Quaternion Algebra Test *)
+Print["4.4a Quaternion Algebra"];
 quaternionTernary[q1_, q2_, q3_, d_] := (q1**q2 + q2**q3 + q3**q1)/d;
-testQuaternionCyclic[] := Module[{q1, q2, q3, result1, result2, tests},
+testQuaternionCyclic[trials_:100] := Module[{q1, q2, q3, result1, result2, tests},
   tests = Table[
     q1 = Quaternion @@ RandomReal[{-1,1}, 4];
     q2 = Quaternion @@ RandomReal[{-1,1}, 4];
@@ -347,15 +351,24 @@ testQuaternionCyclic[] := Module[{q1, q2, q3, result1, result2, tests},
     result1 = quaternionTernary[q1, q2, q3, 2];
     result2 = quaternionTernary[q3, q1, q2, 2];
     Norm[result1 - result2] < 10^-10,
-    20
+    trials
   ];
   Count[tests, True]/Length[tests]
 ];
-cyclicPreserved = testQuaternionCyclic[];
-Print["Quaternion cyclic symmetry preserved: ", cyclicPreserved*100, "% of trials"];
+cyclicPreserved = testQuaternionCyclic[1000];
+Print["Cyclic symmetry preserved (n=1000): ", cyclicPreserved*100, "%"];
+Print[""];
+
+(* 4.4b Random Matrix Ternary Algebras - Non-commutative Extension *)
+Print["4.4b Random Matrix Ternary Algebras (Frobenius-normalized)"];
+genNormalizedMatrix[dim_] := Module[{m},
+  m = RandomReal[{-1,1}, {dim, dim}];
+  m / Norm[m, "Frobenius"]
+];
+
 matrixTernarySpectrum[dimension_, denominator_, iterations_] :=
   Module[{m1, m2, m3, trajectory, eigenvalues},
-    {m1, m2, m3} = RandomReal[{-1,1}, {3, dimension, dimension}];
+    {m1, m2, m3} = Table[genNormalizedMatrix[dimension], 3];
     trajectory = NestList[
       With[{prev = #}, (m1.prev + m2.prev + m3.prev)/denominator] &,
       IdentityMatrix[dimension],
@@ -363,12 +376,149 @@ matrixTernarySpectrum[dimension_, denominator_, iterations_] :=
     ];
     Max[Abs[Eigenvalues[Last[trajectory]]]]
   ];
-Print["Matrix ternary algebras (5x5, 50 iterations)..."];
-matrixD2 = Table[matrixTernarySpectrum[5, 2, 50], 10];
-matrixD3 = Table[matrixTernarySpectrum[5, 3, 50], 10];
-Print["d=2 mean max |lambda|: ", Mean[matrixD2]];
-Print["d=3 mean max |lambda|: ", Mean[matrixD3]];
-Print["Non-commutative escape: ", If[Mean[matrixD2] < 1, "yes", "no"]];
+Print[""];
+Print["Arithmetic Statistics (n=50)"];
+Print["dim | d=2 mean±σ | d=3 mean±σ"];
+Do[
+  Module[{matrixD2, matrixD3, meanD2, meanD3, stdD2, stdD3},
+    matrixD2 = Table[matrixTernarySpectrum[dim, 2, 50], 50];
+    matrixD3 = Table[matrixTernarySpectrum[dim, 3, 50], 50];
+    meanD2 = Mean[matrixD2];
+    meanD3 = Mean[matrixD3];
+    stdD2 = StandardDeviation[matrixD2];
+    stdD3 = StandardDeviation[matrixD3];
+    Print[dim, "   | ", NumberForm[meanD2, {8, 2}], "±", NumberForm[stdD2, {8, 2}],
+          " | ", NumberForm[meanD3, {8, 2}], "±", NumberForm[stdD3, {8, 2}]]
+  ],
+  {dim, {3, 5, 8, 10}}
+];
+Print[""];
+
+Print["Geometric Statistics"];
+Print["dim | d=2 geom.mean×/÷σ | d=3 geom.mean×/÷σ"];
+Do[
+  Module[{matrixD2, matrixD3, logD2, logD3, geomean2, geomean3, geosd2, geosd3},
+    matrixD2 = Table[matrixTernarySpectrum[dim, 2, 50], 50];
+    matrixD3 = Table[matrixTernarySpectrum[dim, 3, 50], 50];
+    logD2 = Log10[Select[matrixD2, # > 0 &]];
+    logD3 = Log10[Select[matrixD3, # > 0 &]];
+    geomean2 = 10^Mean[logD2];
+    geomean3 = 10^Mean[logD3];
+    geosd2 = 10^StandardDeviation[logD2];
+    geosd3 = 10^StandardDeviation[logD3];
+    Print[dim, "   | ", NumberForm[geomean2, {8, 2}], "×/÷", NumberForm[geosd2, {6, 2}],
+          " | ", NumberForm[geomean3, {8, 2}], "×/÷", NumberForm[geosd3, {6, 2}]]
+  ],
+  {dim, {3, 5, 8, 10}}
+];
+Print[""];
+
+Print["Median and IQR"];
+Print["dim | d=2 median [Q1, Q3] | d=3 median [Q1, Q3]"];
+Do[
+  Module[{matrixD2, matrixD3, med2, med3, q12, q32, q13, q33},
+    matrixD2 = Table[matrixTernarySpectrum[dim, 2, 50], 50];
+    matrixD3 = Table[matrixTernarySpectrum[dim, 3, 50], 50];
+    med2 = Median[matrixD2];
+    med3 = Median[matrixD3];
+    q12 = Quantile[matrixD2, 0.25];
+    q32 = Quantile[matrixD2, 0.75];
+    q13 = Quantile[matrixD3, 0.25];
+    q33 = Quantile[matrixD3, 0.75];
+    Print[dim, "   | ", NumberForm[med2, {8, 2}], " [", NumberForm[q12, {6, 2}], ", ", NumberForm[q32, {8, 2}], "]",
+          " | ", NumberForm[med3, {8, 2}], " [", NumberForm[q13, {6, 2}], ", ", NumberForm[q33, {8, 2}], "]"]
+  ],
+  {dim, {3, 5, 8, 10}}
+];
+Print[""];
+
+Print["Order of Magnitude"];
+Print["dim | d=2 log10(λ) mean±σ | d=3 log10(λ) mean±σ"];
+Do[
+  Module[{matrixD2, matrixD3, logD2, logD3, meanLog2, meanLog3, sdLog2, sdLog3},
+    matrixD2 = Table[matrixTernarySpectrum[dim, 2, 50], 50];
+    matrixD3 = Table[matrixTernarySpectrum[dim, 3, 50], 50];
+    logD2 = Log10[Select[matrixD2, # > 0 &]];
+    logD3 = Log10[Select[matrixD3, # > 0 &]];
+    meanLog2 = Mean[logD2];
+    meanLog3 = Mean[logD3];
+    sdLog2 = StandardDeviation[logD2];
+    sdLog3 = StandardDeviation[logD3];
+    Print[dim, "   | ", NumberForm[meanLog2, {6, 3}], "±", NumberForm[sdLog2, {5, 3}],
+          " | ", NumberForm[meanLog3, {6, 3}], "±", NumberForm[sdLog3, {5, 3}]]
+  ],
+  {dim, {3, 5, 8, 10}}
+];
+Print[""];
+
+Print["Threshold Analysis"];
+Print["dim | d=2 frac>10^-10 | d=2 frac>10^-5 | d=3 frac>10^-20 | d=3 frac>10^-10"];
+Do[
+  Module[{matrixD2, matrixD3, frac26, frac210, frac33, frac36},
+    matrixD2 = Table[matrixTernarySpectrum[dim, 2, 50], 50];
+    matrixD3 = Table[matrixTernarySpectrum[dim, 3, 50], 50];
+    frac26 = Count[matrixD2, x_ /; x > 10^-10] / Length[matrixD2];
+    frac210 = Count[matrixD2, x_ /; x > 10^-5] / Length[matrixD2];
+    frac33 = Count[matrixD3, x_ /; x > 10^-20] / Length[matrixD3];
+    frac36 = Count[matrixD3, x_ /; x > 10^-10] / Length[matrixD3];
+    Print[dim, "   | ", NumberForm[frac26*100, {5, 1}], "% | ", NumberForm[frac210*100, {5, 1}], "% | ",
+          NumberForm[frac33*100, {5, 1}], "% | ", NumberForm[frac36*100, {5, 1}], "%"]
+  ],
+  {dim, {3, 5, 8, 10}}
+];
+Print[""];
+
+(* 4.4c Scalar Ternary Iteration - Direct PCTA.v Validation *)
+Print["4.4c Scalar Ternary Iteration (Direct PCTA.v validation)"];
+Print["Validates PCTA.v:659-680 T_iter_bound theorem"];
+Print[""];
+scalarTernary[d_][x_] := (x + x + x)/d;
+Print["Iteration trajectories (initial value = 1.0)"];
+Print["n   | d=2 value      | d=3 value | (3/2)^n theoretical | d=2/d=3 ratio"];
+Do[
+  Module[{traj2, traj3, final2, final3, theoretical, ratio},
+    traj2 = NestList[scalarTernary[2], 1.0, n];
+    traj3 = NestList[scalarTernary[3], 1.0, n];
+    final2 = Last[traj2];
+    final3 = Last[traj3];
+    theoretical = (3/2)^n;
+    ratio = final2/final3;
+    Print[PaddedForm[n, {3}], " | ", NumberForm[final2, {12, 4}], " | ",
+          NumberForm[final3, {8, 4}], " | ", NumberForm[theoretical, {12, 4}],
+          "      | ", NumberForm[ratio, {12, 4}]]
+  ],
+  {n, {5, 10, 15, 20, 25, 30, 40, 50}}
+];
+Print[""];
+Print["Log-scale growth rates"];
+Print["n   | log10(d=2) | log10(d=3) | Difference (orders of magnitude)"];
+Do[
+  Module[{final2, final3, log2, log3, diff},
+    final2 = Nest[scalarTernary[2], 1.0, n];
+    final3 = Nest[scalarTernary[3], 1.0, n];
+    log2 = Log10[final2];
+    log3 = Log10[final3];
+    diff = log2 - log3;
+    Print[PaddedForm[n, {3}], " | ", NumberForm[log2, {8, 3}], " | ",
+          NumberForm[log3, {8, 3}], " | ", NumberForm[diff, {8, 3}]]
+  ],
+  {n, {10, 20, 30, 40, 50}}
+];
+Print[""];
+Print["Convergence verification: d=2 approaches (3/2)^n, d=3 remains at 1"];
+Print["n   | d=2 error vs (3/2)^n | d=3 deviation from 1"];
+Do[
+  Module[{final2, final3, theoretical, error2, error3},
+    final2 = Nest[scalarTernary[2], 1.0, n];
+    final3 = Nest[scalarTernary[3], 1.0, n];
+    theoretical = (3/2)^n;
+    error2 = Abs[final2 - theoretical];
+    error3 = Abs[final3 - 1.0];
+    Print[PaddedForm[n, {3}], " | ", NumberForm[error2, {12, 6}],
+          "         | ", NumberForm[error3, {12, 6}]]
+  ],
+  {n, {5, 10, 20, 30, 50}}
+];
 Print[""];
 
 (* 4.7 Game-Theoretic Byzantine *)
@@ -453,7 +603,10 @@ Print["  All n>=2: L>1"];
 Print[""];
 Print["Phase 4: Advanced"];
 Print["  Iteration d=2/d=3 ratio: ", N[Last[iterationComparisonD2]/Last[iterationComparisonD3]]];
-Print["  Matrix d=2 mean max |lambda|: ", N[Mean[matrixD2]]];
+Print["  Quaternion trials: 1000"];
+Print["  Matrix trials per dimension: 50"];
+Print["  Matrix normalization: Frobenius norm"];
+Print["  Statistics: arithmetic, geometric, median/IQR, log-scale, threshold"];
 Print["  Byzantine bound holds: ", holds];
 Print[""];
 Print["All phases complete"];
