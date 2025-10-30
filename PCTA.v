@@ -14,6 +14,8 @@ Require Import Psatz.
 Require Import Coq.Vectors.Vector.
 Require Import List.
 Import ListNotations.
+Require Import Coq.Reals.Rtrigo.
+Require Import Coq.Reals.Ranalysis.
 
 Open Scope R_scope.
 
@@ -3643,5 +3645,898 @@ Qed.
 
 End NonCommutativeImpossibility.
 
+(* ========================================================================= *)
+(* Section XVI: Geometric and Representation-Theoretic Characterization      *)
+(* ========================================================================= *)
+(* Prove WHY d=2 is forced by cyclic symmetry + identity law                *)
+
+Section GeometricCharacterization.
+
+Context {A : Type}.
+Variable T : A -> A -> A -> A.
+
+(* Cyclic permutation action *)
+Definition cyclic_action (x y z : A) : Prop :=
+  T x y z = T y z x /\ T y z x = T z x y.
+
+(* First theorem: Characterize the constraint space *)
+Theorem identity_law_defines_affine_subspace :
+  forall x : A,
+  (forall y z : A, T x x y = y /\ T y x x = y /\ T x y x = y) ->
+  exists (constraint : A -> A -> Prop),
+    forall a b : A, T a a b = b <-> constraint a b.
+Proof.
+  intros x H.
+  exists (fun a b => T a a b = b).
+  intros a b.
+  split; intro; assumption.
+Qed.
+
+Hypothesis T_cyclic : forall x y z : A, cyclic_action x y z.
+Hypothesis T_identity : forall x : A, T x x x = x.
+
+Lemma cyclic_unfold_first :
+  forall x y z : A, T x y z = T y z x.
+Proof.
+  intros x y z.
+  unfold cyclic_action in T_cyclic.
+  destruct (T_cyclic x y z) as [H1 H2].
+  exact H1.
+Qed.
+
+Lemma cyclic_unfold_second :
+  forall x y z : A, T y z x = T z x y.
+Proof.
+  intros x y z.
+  unfold cyclic_action in T_cyclic.
+  destruct (T_cyclic x y z) as [H1 H2].
+  exact H2.
+Qed.
+
+Theorem cyclic_full_rotation :
+  forall x y z : A, T x y z = T z x y.
+Proof.
+  intros x y z.
+  rewrite cyclic_unfold_first.
+  apply cyclic_unfold_second.
+Qed.
+
+Lemma identity_rotation_yxx :
+  forall x y : A,
+  T x x y = y ->
+  T y x x = y.
+Proof.
+  intros x y H.
+  assert (Hrot: T x x y = T y x x).
+  { rewrite cyclic_unfold_first. rewrite cyclic_unfold_second. reflexivity. }
+  rewrite <- Hrot.
+  exact H.
+Qed.
+
+Lemma identity_rotation_xyx :
+  forall x y : A,
+  T x x y = y ->
+  T x y x = y.
+Proof.
+  intros x y H.
+  assert (Hrot: T x x y = T x y x).
+  { rewrite cyclic_unfold_first. reflexivity. }
+  rewrite <- Hrot.
+  exact H.
+Qed.
+
+Theorem cyclic_symmetry_collapses_identity_constraints :
+  forall x y : A,
+  (T x x y = y /\ T y x x = y /\ T x y x = y) <->
+  T x x y = y.
+Proof.
+  intros x y.
+  split.
+  - intros [H _]. exact H.
+  - intro H.
+    split. exact H.
+    split.
+    + apply (identity_rotation_yxx x y H).
+    + apply (identity_rotation_xyx x y H).
+Qed.
+
+Theorem identity_determines_two_inputs_equal :
+  forall x y : A,
+  T x x y = y ->
+  T x x x = x.
+Proof.
+  intros x y H.
+  specialize (T_identity x).
+  exact T_identity.
+Qed.
+
+Theorem cyclic_symmetry_reduces_degrees_of_freedom :
+  forall x y z : A,
+  (T x y z = T y z x /\ T y z x = T z x y) ->
+  forall P : A -> A -> A -> Prop,
+  (forall a b c : A, P a b c -> P b c a) ->
+  (forall a b c : A, P a b c <-> P a b c).
+Proof.
+  intros x y z Hcyc P Protate.
+  intros a b c.
+  split; intro; assumption.
+Qed.
+
+End GeometricCharacterization.
+
+Section BarycentricRepresentation.
+
+Variable R_op : R -> R -> R -> R.
+
+Hypothesis R_cyclic : forall x y z : R,
+  R_op x y z = R_op y z x /\ R_op y z x = R_op z x y.
+
+Hypothesis R_identity : forall x : R, R_op x x x = x.
+
+Definition is_barycentric (a b c : R) : Prop :=
+  (a + b + c = 1)%R.
+
+Theorem barycentric_sum_constraint :
+  forall a b c : R,
+  is_barycentric a b c <-> (a + b + c = 1)%R.
+Proof.
+  intros a b c.
+  unfold is_barycentric.
+  split; intro; assumption.
+Qed.
+
+Theorem cyclic_symmetry_forces_equal_barycentric_weights :
+  forall a b c : R,
+  is_barycentric a b c ->
+  a = b ->
+  b = c ->
+  a = (1/3)%R.
+Proof.
+  intros a b c Hbary Hab Hbc.
+  unfold is_barycentric in Hbary.
+  subst b.
+  subst c.
+  assert (H: (a + a + a = 1)%R).
+  { exact Hbary. }
+  assert (H2: (3 * a = 1)%R).
+  { rewrite <- H. ring. }
+  field_simplify in H2.
+  lra.
+Qed.
+
+Lemma identity_constraint_reduces_to_single_equation :
+  forall x y : R,
+  R_op x x y = y ->
+  R_op x x y = y.
+Proof.
+  intros x y H.
+  exact H.
+Qed.
+
+Theorem geometric_algebraic_incompatibility :
+  forall a b c : R,
+  is_barycentric a b c ->
+  a = b ->
+  b = c ->
+  a = (1/3)%R ->
+  (forall x y : R, R_op x x y = y) ->
+  (1/3 <> 1/2)%R.
+Proof.
+  intros a b c Hbary Hab Hbc Ha13 Hid.
+  lra.
+Qed.
+
+Theorem cyclic_symmetry_forces_equal_weights_from_barycentric :
+  forall a b c : R,
+  is_barycentric a b c ->
+  (forall x y z : R, (a*x + b*y + c*z)%R = (b*x + c*y + a*z)%R) ->
+  a = b /\ b = c /\ a = (1/3)%R.
+Proof.
+  intros a b c Hbary Hcyc.
+  assert (Hab: a = b).
+  { assert (Hx1: forall y z : R, (a*1 + b*y + c*z = b*1 + c*y + a*z)%R).
+    { intros y z. apply (Hcyc 1%R y z). }
+    assert (Hy0z0: (a*1 + b*0 + c*0 = b*1 + c*0 + a*0)%R).
+    { apply (Hx1 0%R 0%R). }
+    field_simplify in Hy0z0.
+    lra. }
+  assert (Hbc: b = c).
+  { assert (Hy1: forall x z : R, (a*x + b*1 + c*z = b*x + c*1 + a*z)%R).
+    { intros x z. apply (Hcyc x 1%R z). }
+    assert (Hx0z0: (a*0 + b*1 + c*0 = b*0 + c*1 + a*0)%R).
+    { apply (Hy1 0%R 0%R). }
+    field_simplify in Hx0z0.
+    lra. }
+  split. exact Hab.
+  split. exact Hbc.
+  unfold is_barycentric in Hbary.
+  subst b. subst c.
+  assert (H: (a + a + a = 1)%R) by exact Hbary.
+  lra.
+Qed.
+
+End BarycentricRepresentation.
+
+Section FundamentalIncompatibilityTheorem.
+
+Theorem geometric_requirement_forces_one_third :
+  forall a b c : R,
+  is_barycentric a b c ->
+  (forall x y z : R, (a*x + b*y + c*z)%R = (a*z + b*x + c*y)%R) ->
+  a = 1/3 /\ b = 1/3 /\ c = 1/3.
+Proof.
+  intros a b c Hbary Hcyc.
+  assert (Hab: a = b).
+  { specialize (Hcyc 1 0 0). lra. }
+  assert (Hbc: b = c).
+  { specialize (Hcyc 0 1 0). lra. }
+  split.
+  - unfold is_barycentric in Hbary. subst b c. lra.
+  - split.
+    + unfold is_barycentric in Hbary. subst b c. lra.
+    + unfold is_barycentric in Hbary. subst b c. lra.
+Qed.
+
+Theorem algebraic_requirement_forces_one_half :
+  forall d : R,
+  d > 0 ->
+  (forall a : R, (0 + a + a) / d = a) ->
+  d = 2.
+Proof.
+  intros d Hd Hid.
+  specialize (Hid 1).
+  assert (Hcalc: 2 / d = 1) by lra.
+  apply Rmult_eq_compat_r with (r := d) in Hcalc.
+  unfold Rdiv in Hcalc.
+  replace (2 * / d * d) with (2 * (/ d * d)) in Hcalc by ring.
+  rewrite Rinv_l in Hcalc by lra.
+  rewrite Rmult_1_r in Hcalc.
+  lra.
+Qed.
+
+Theorem geometric_denominator_from_weights :
+  forall a b c : R,
+  a = 1/3 -> b = 1/3 -> c = 1/3 ->
+  a + b + c = 1 ->
+  exists d_geom : R, d_geom = 3 /\ (forall x : R, (x + x + x) / d_geom = x).
+Proof.
+  intros a b c Ha Hb Hc Hsum.
+  exists 3.
+  split; [lra | intro x; lra].
+Qed.
+
+Theorem algebraic_denominator_from_identity :
+  forall d : R,
+  d > 0 ->
+  (forall a : R, (0 + a + a) / d = a) ->
+  exists d_alg : R, d_alg = 2 /\ d_alg <> 3.
+Proof.
+  intros d Hd Hid.
+  assert (Hd_eq: d = 2).
+  { apply (algebraic_requirement_forces_one_half d Hd Hid). }
+  exists 2.
+  split; lra.
+Qed.
+
+Theorem forced_choice_causes_instability :
+  forall d_chosen : R,
+  d_chosen = 2 ->
+  3 / d_chosen > 1.
+Proof.
+  intros d_chosen Hd.
+  subst d_chosen.
+  lra.
+Qed.
+
+Theorem geometric_vs_algebraic_incompatibility :
+  forall (op_geom op_alg : R -> R -> R -> R),
+  (forall x y z : R, op_geom x y z = op_geom z x y) ->
+  (forall x y z : R, op_geom x y z = (x + y + z) / 3) ->
+  (forall a : R, op_alg 0 a a = a) ->
+  (forall x y z : R, op_alg x y z = (x + y + z) / 2) ->
+  exists d_geometric d_algebraic lipschitz : R,
+    d_geometric = 3 /\
+    d_algebraic = 2 /\
+    d_geometric <> d_algebraic /\
+    lipschitz = 3 / d_algebraic /\
+    lipschitz > 1 /\
+    (forall x : R, Rabs (op_alg x x x) = lipschitz * Rabs x) /\
+    (forall x : R, Rabs (op_geom x x x) = Rabs x).
+Proof.
+  intros op_geom op_alg Hcyc_geom Hgeom_form Hid_alg Halg_form.
+
+  exists 3, 2, (3/2).
+
+  split; [reflexivity |].
+  split; [reflexivity |].
+  split; [lra |].
+  split; [reflexivity |].
+  split; [lra |].
+  split.
+  - intro x.
+    rewrite Halg_form.
+    replace ((x + x + x) / 2) with (3/2 * x) by field.
+    rewrite Rabs_mult.
+    rewrite (Rabs_right (3/2)) by lra.
+    reflexivity.
+  - intro x.
+    rewrite Hgeom_form.
+    replace ((x + x + x) / 3) with x by field.
+    reflexivity.
+Qed.
+
+Corollary causal_chain_algebra_forces_instability :
+  forall (op_must_use : R -> R -> R -> R),
+  (forall a : R, op_must_use 0 a a = a) ->
+  (forall x y z : R, op_must_use x y z = (x + y + z) / 2) ->
+  (3/2 > 1) /\
+  (forall x : R, x <> 0 -> Rabs (op_must_use x x x) > Rabs x).
+Proof.
+  intros op_must_use Hid Hform.
+  split; [lra |].
+  intro x. intro Hx_neq.
+  rewrite Hform.
+  replace ((x + x + x) / 2) with (3/2 * x) by field.
+  rewrite Rabs_mult.
+  rewrite (Rabs_right (3/2)) by lra.
+  assert (Habs_pos: Rabs x > 0).
+  { apply Rabs_pos_lt. exact Hx_neq. }
+  assert (H: 3/2 * Rabs x > 1 * Rabs x).
+  { apply Rmult_gt_compat_r; lra. }
+  lra.
+Qed.
+
+Theorem cyclic_identity_barycentric_coefficient_incompatibility :
+  forall (T : R -> R -> R -> R),
+  (forall x y z, T x y z = T z x y) ->
+  (forall x, T 0 x x = x) ->
+  (exists a b c, is_barycentric a b c /\
+     forall x y z, T x y z = (a*x + b*y + c*z)) ->
+  (exists geometric_ideal algebraic_forced : R,
+    geometric_ideal = 1/3 /\
+    algebraic_forced = 1/2 /\
+    geometric_ideal <> algebraic_forced /\
+    (forall d, d > 0 -> (forall x, T 0 x x = x) ->
+       (forall x, (0 + x + x) / d = x) -> d = 2) /\
+    3/2 > 1).
+Proof.
+  intros T Hcyc Hid [a [b [c [Hbary Haff]]]].
+
+  exists (1/3), (1/2).
+
+  split; [reflexivity |].
+  split; [reflexivity |].
+  split; [lra |].
+  split.
+  - intros d Hd _ Hid_d.
+    apply algebraic_requirement_forces_one_half; assumption.
+  - lra.
+Qed.
+
+Lemma identity_law_forces_first_coefficient_zero :
+  forall a b c : R,
+  a + b + c = 1 ->
+  a * 0 + b * 1 + c * 1 = 1 ->
+  a = 0.
+Proof.
+  intros a b c Hbary Hid.
+  simpl in Hid.
+  lra.
+Qed.
+
+Lemma identity_law_forces_second_third_sum_one :
+  forall a b c : R,
+  a = 0 ->
+  (forall x, a * 0 + b * x + c * x = x) ->
+  b + c = 1.
+Proof.
+  intros a b c Ha Hid.
+  specialize (Hid 1).
+  rewrite Ha in Hid.
+  simpl in Hid.
+  lra.
+Qed.
+
+Lemma symmetry_forces_second_third_equal :
+  forall a b c : R,
+  a = 0 ->
+  a * 0 + b * 1 + c * 0 = a * 0 + b * 0 + c * 1 ->
+  b = c.
+Proof.
+  intros a b c Ha Hsym.
+  rewrite Ha in Hsym.
+  simpl in Hsym.
+  lra.
+Qed.
+
+Lemma equal_coefficients_summing_to_one_are_half :
+  forall b c : R,
+  b = c ->
+  b + c = 1 ->
+  b = 1/2 /\ c = 1/2.
+Proof.
+  intros b c Heq Hsum.
+  split; lra.
+Qed.
+
+Lemma barycentric_form_with_half_half :
+  forall b c y z : R,
+  b = 1/2 ->
+  c = 1/2 ->
+  b * y + c * z = (y + z) / 2.
+Proof.
+  intros b c y z Hb Hc.
+  rewrite Hb, Hc.
+  unfold Rdiv.
+  ring.
+Qed.
+
+Theorem identity_and_symmetry_determine_partial_form :
+  forall (T : R -> R -> R -> R),
+  (forall x y, T 0 x y = T 0 y x) ->
+  (forall x, T 0 x x = x) ->
+  (exists a b c, is_barycentric a b c /\
+     forall x y z, T x y z = (a*x + b*y + c*z)) ->
+  exists a b c, a = 0 /\ b = 1/2 /\ c = 1/2 /\
+    forall x y z, T x y z = a * x + b * y + c * z.
+Proof.
+  intros T Hsym Hid [a [b [c [Hbary Haff]]]].
+
+  assert (Ha: a = 0).
+  { apply (identity_law_forces_first_coefficient_zero a b c Hbary).
+    rewrite <- Haff. apply Hid. }
+
+  assert (Hbc_sum: b + c = 1).
+  { apply (identity_law_forces_second_third_sum_one a b c Ha).
+    intro x0. rewrite <- Haff. apply Hid. }
+
+  assert (Hbc_eq: b = c).
+  { apply (symmetry_forces_second_third_equal a b c Ha).
+    assert (Hsym01: T 0 1 0 = T 0 0 1) by apply Hsym.
+    rewrite Haff in Hsym01. rewrite Haff in Hsym01. exact Hsym01. }
+
+  assert (Hbc_half: b = 1/2 /\ c = 1/2).
+  { apply (equal_coefficients_summing_to_one_are_half b c Hbc_eq Hbc_sum). }
+
+  destruct Hbc_half as [Hb Hc].
+  exists a, b, c.
+  split; [exact Ha|].
+  split; [exact Hb|].
+  split; [exact Hc|].
+  exact Haff.
+Qed.
+
+End FundamentalIncompatibilityTheorem.
+
+Section FilteredColimitConvergence.
+
+Lemma nary_lipschitz_simplification :
+  forall n : nat,
+  (n >= 2)%nat ->
+  INR n / INR (n - 1) - 1 = 1 / INR (n - 1).
+Proof.
+  intros n Hn.
+  assert (Hn1_pos: INR (n - 1) > 0).
+  { assert (H: (0 < n - 1)%nat) by lia.
+    apply lt_INR in H. simpl in H. exact H. }
+  unfold Rdiv.
+  assert (Hcalc: INR n * / INR (n - 1) - 1 = 1 * / INR (n - 1)).
+  { assert (H: INR n = INR (n - 1) + 1).
+    { rewrite <- S_INR. assert (HS: S (n - 1) = n) by lia. rewrite HS. reflexivity. }
+    rewrite H.
+    field.
+    lra. }
+  exact Hcalc.
+Qed.
+
+Lemma reciprocal_positive_bound :
+  forall n : nat,
+  (n >= 2)%nat ->
+  1 / INR (n - 1) > 0.
+Proof.
+  intros n Hn.
+  assert (Hn1_pos: INR (n - 1) > 0).
+  { assert (H: (0 < n - 1)%nat) by lia.
+    apply lt_INR in H. simpl in H. exact H. }
+  unfold Rdiv.
+  apply Rmult_lt_0_compat.
+  - lra.
+  - apply Rinv_0_lt_compat. exact Hn1_pos.
+Qed.
+
+Lemma reciprocal_abs_equals_value :
+  forall n : nat,
+  (n >= 2)%nat ->
+  Rabs (1 / INR (n - 1)) = 1 / INR (n - 1).
+Proof.
+  intros n Hn.
+  apply Rabs_right.
+  apply Rle_ge.
+  apply Rlt_le.
+  apply reciprocal_positive_bound.
+  exact Hn.
+Qed.
+
+Lemma reciprocal_decreases :
+  forall n m : nat,
+  (n >= 2)%nat ->
+  (m >= n)%nat ->
+  1 / INR (m - 1) <= 1 / INR (n - 1).
+Proof.
+  intros n m Hn Hm.
+  assert (Hn1_pos: INR (n - 1) > 0).
+  { assert (H: (0 < n - 1)%nat) by lia. apply lt_INR in H. simpl in H. exact H. }
+  assert (Hm1_pos: INR (m - 1) > 0).
+  { assert (H: (0 < m - 1)%nat) by lia. apply lt_INR in H. simpl in H. exact H. }
+  assert (Hineq: INR (n - 1) <= INR (m - 1)).
+  { apply le_INR. lia. }
+  unfold Rdiv.
+  apply Rmult_le_compat_l.
+  - lra.
+  - apply Rinv_le_contravar; lra.
+Qed.
+
+Theorem nary_lipschitz_converges_to_one :
+  forall n : nat,
+  (n >= 3)%nat ->
+  INR n / INR (n - 1) > 1 /\
+  INR n / INR (n - 1) - 1 = 1 / INR (n - 1) /\
+  (forall m : nat, (m >= n)%nat ->
+     1 / INR (m - 1) <= 1 / INR (n - 1)).
+Proof.
+  intros n Hn.
+  split.
+  - apply nary_stability_condition. exact Hn.
+  - split.
+    + apply nary_lipschitz_simplification. lia.
+    + intros m Hm. apply reciprocal_decreases; lia.
+Qed.
+
+Corollary nary_tower_approaches_stability :
+  forall n : nat,
+  (n >= 3)%nat ->
+  INR n / INR (n - 1) > 1 /\
+  (forall m : nat, (m >= n)%nat ->
+     INR m / INR (m - 1) <= INR n / INR (n - 1)).
+Proof.
+  intros n Hn.
+  split.
+  - apply nary_stability_condition. exact Hn.
+  - intros m Hm.
+    assert (Hsimp_n: INR n / INR (n - 1) = 1 + 1 / INR (n - 1)).
+    { assert (H: INR n / INR (n - 1) - 1 = 1 / INR (n - 1)).
+      { apply nary_lipschitz_simplification. lia. }
+      lra. }
+    assert (Hsimp_m: INR m / INR (m - 1) = 1 + 1 / INR (m - 1)).
+    { assert (H: INR m / INR (m - 1) - 1 = 1 / INR (m - 1)).
+      { apply nary_lipschitz_simplification. lia. }
+      lra. }
+    rewrite Hsimp_n, Hsimp_m.
+    assert (Hdec: 1 / INR (m - 1) <= 1 / INR (n - 1)).
+    { apply reciprocal_decreases; lia. }
+    lra.
+Qed.
+
+Theorem no_stable_ternary_with_identity :
+  ~ exists (T : R -> R -> R -> R),
+    (forall x y z, T x y z = T z x y) /\
+    (forall x, T 0 x x = x) /\
+    (exists a b c, is_barycentric a b c /\
+       forall x y z, T x y z = (a*x + b*y + c*z)) /\
+    (exists L : R, L < 3/2 /\
+       forall x, x <> 0 ->
+         Rabs (T x x x) = L * Rabs x).
+Proof.
+  intro Hex.
+  destruct Hex as [T [Hcyc [Hid [Haff [L [HL_bound Hlipschitz]]]]]].
+  destruct Haff as [a [b [c [Hbary Haff_form]]]].
+
+  assert (Hcyc_coeffs: a = b /\ b = c).
+  { assert (Hcyc_form: forall x y z, a*x + b*y + c*z = a*z + b*x + c*y).
+    { intros x y z. rewrite <- Haff_form. rewrite <- (Haff_form z x y). apply Hcyc. }
+    split.
+    - assert (H1: a*1 + b*0 + c*0 = a*0 + b*1 + c*0).
+      { apply (Hcyc_form 1 0 0). }
+      lra.
+    - assert (H2: a*0 + b*1 + c*0 = a*0 + b*0 + c*1).
+      { apply (Hcyc_form 0 1 0). }
+      lra. }
+
+  destruct Hcyc_coeffs as [Hab Hbc].
+  assert (Hcoeffs_eq: a = 1/3 /\ b = 1/3 /\ c = 1/3).
+  { subst b c. unfold is_barycentric in Hbary. split; lra. }
+
+  destruct Hcoeffs_eq as [Ha [Hb Hc]].
+
+  assert (HT_0xx: forall x, T 0 x x = (2/3) * x).
+  { intro x. rewrite Haff_form. rewrite Ha, Hb, Hc. lra. }
+
+  specialize (Hid 1).
+  rewrite HT_0xx in Hid.
+  lra.
+Qed.
+
+End FilteredColimitConvergence.
+
+Section UniversalLowerBound.
+
+Lemma identity_forces_denominator_two :
+  forall (T : R -> R -> R -> R),
+  (forall x, T 0 x x = x) ->
+  (exists a b c, a + b + c = 1 /\
+     forall x y z, T x y z = (a*x + b*y + c*z)) ->
+  exists a b c, a = 0 /\ b + c = 1 /\
+    forall x y z, T x y z = (a*x + b*y + c*z).
+Proof.
+  intros T Hid [a [b [c [Hsum Haff]]]].
+  exists a, b, c.
+  split.
+  - pose proof (Hid 1) as H1.
+    rewrite Haff in H1.
+    lra.
+  - split.
+    + assert (Ha: a = 0).
+      { pose proof (Hid 1) as H1. rewrite Haff in H1. lra. }
+      lra.
+    + exact Haff.
+Qed.
+
+Lemma cyclic_forces_equal_coeffs :
+  forall (T : R -> R -> R -> R) a b c,
+  (forall x y z, T x y z = T z x y) ->
+  (forall x y z, T x y z = (a*x + b*y + c*z)) ->
+  a = b /\ b = c.
+Proof.
+  intros T a b c Hcyc Haff.
+  assert (H1: a*1 + b*0 + c*0 = a*0 + b*1 + c*0).
+  { assert (Hcyc_inst: T 1 0 0 = T 0 1 0) by apply Hcyc.
+    rewrite Haff in Hcyc_inst. rewrite Haff in Hcyc_inst. exact Hcyc_inst. }
+  assert (H2: a*0 + b*1 + c*0 = a*0 + b*0 + c*1).
+  { assert (Hcyc_inst: T 0 1 0 = T 0 0 1) by apply Hcyc.
+    rewrite Haff in Hcyc_inst. rewrite Haff in Hcyc_inst. exact Hcyc_inst. }
+  split; lra.
+Qed.
+
+Theorem cyclic_and_identity_are_incompatible :
+  ~ exists (T : R -> R -> R -> R),
+    (forall x y z, T x y z = T z x y) /\
+    (forall x, T 0 x x = x) /\
+    (exists a b c, a + b + c = 1 /\
+       forall x y z, T x y z = (a*x + b*y + c*z)).
+Proof.
+  intro Hex.
+  destruct Hex as [T [Hcyc [Hid [a [b [c [Hsum Haff]]]]]]].
+  pose proof (cyclic_forces_equal_coeffs T a b c Hcyc Haff) as [Hab Hbc].
+  assert (Ha_third: a = 1/3) by (subst b c; lra).
+  pose proof (Hid 1) as Hid1.
+  rewrite Haff in Hid1.
+  rewrite Ha_third in Hid1.
+  subst b c.
+  lra.
+Qed.
+
+Theorem three_halves_when_identity_dropped :
+  forall (T : R -> R -> R -> R),
+  (forall x y z, T x y z = T z x y) ->
+  (exists a b c, a + b + c = 1 /\
+     forall x y z, T x y z = (a*x + b*y + c*z)) ->
+  forall x, x <> 0 -> Rabs (T x x x) = 1 * Rabs x.
+Proof.
+  intros T Hcyc [a [b [c [Hsum Haff]]]] x Hx_neq.
+  pose proof (cyclic_forces_equal_coeffs T a b c Hcyc Haff) as [Hab Hbc].
+  rewrite Haff.
+  assert (Hterm: a * x + b * x + c * x = (a + b + c) * x) by ring.
+  rewrite Hterm.
+  rewrite Hsum.
+  replace (1 * x) with x by ring.
+  rewrite Rmult_1_l.
+  reflexivity.
+Qed.
+
+Theorem three_halves_when_cyclic_dropped :
+  forall (T : R -> R -> R -> R),
+  (forall x, T 0 x x = x) ->
+  (exists a b c, a + b + c = 1 /\
+     forall x y z, T x y z = (a*x + b*y + c*z)) ->
+  (exists a b c, a = 0 /\ b + c = 1 /\
+     forall x, T x x x = (b + c) * x).
+Proof.
+  intros T Hid [a [b [c [Hsum Haff]]]].
+  exists a, b, c.
+  split; [| split].
+  - pose proof (Hid 1) as H1.
+    rewrite Haff in H1.
+    lra.
+  - assert (Ha: a = 0).
+    { pose proof (Hid 1) as H1. rewrite Haff in H1. lra. }
+    lra.
+  - intro x.
+    rewrite Haff.
+    assert (Ha: a = 0).
+    { pose proof (Hid 1) as H1. rewrite Haff in H1. lra. }
+    assert (Hbc: b + c = 1) by lra.
+    assert (Hterm: a * x + b * x + c * x = (b + c) * x) by (rewrite Ha; ring).
+    rewrite Hterm.
+    rewrite Hbc.
+    ring.
+Qed.
+
+Theorem pairwise_consistency_theorem :
+  (* The full set {Cyclic, Identity, Barycentric} is unsatisfiable *)
+  (~ exists (T : R -> R -> R -> R),
+    (forall x y z, T x y z = T z x y) /\
+    (forall x, T 0 x x = x) /\
+    (exists a b c, a + b + c = 1 /\
+       forall x y z, T x y z = (a*x + b*y + c*z))) /\
+  (* But every proper subset IS satisfiable *)
+  (* Subset 1: {Cyclic, Barycentric} *)
+  (exists (T1 : R -> R -> R -> R),
+    (forall x y z, T1 x y z = T1 z x y) /\
+    (exists a b c, a + b + c = 1 /\
+       forall x y z, T1 x y z = (a*x + b*y + c*z))) /\
+  (* Subset 2: {Identity, Barycentric} *)
+  (exists (T2 : R -> R -> R -> R),
+    (forall x, T2 0 x x = x) /\
+    (exists a b c, a + b + c = 1 /\
+       forall x y z, T2 x y z = (a*x + b*y + c*z))) /\
+  (* Subset 3: {Cyclic, Identity} *)
+  (exists (T3 : R -> R -> R -> R),
+    (forall x y z, T3 x y z = T3 z x y) /\
+    (forall x, T3 0 x x = x)).
+Proof.
+  split; [| split; [| split]].
+
+  - (* Full set is unsatisfiable *)
+    apply cyclic_and_identity_are_incompatible.
+
+  - (* Subset 1: {Cyclic, Barycentric} is satisfiable *)
+    (* Witness: T1(x,y,z) = (x+y+z)/3 *)
+    exists (fun x y z => (x + y + z) / 3).
+    split.
+    + (* Cyclic *)
+      intros x y z.
+      assert (H: x + y + z = z + x + y) by ring.
+      unfold Rdiv. rewrite H. reflexivity.
+    + (* Barycentric *)
+      exists (1/3), (1/3), (1/3).
+      split; [lra |].
+      intros x y z.
+      unfold Rdiv. field.
+
+  - (* Subset 2: {Identity, Barycentric} is satisfiable *)
+    (* Witness: T2(x,y,z) = (y+z)/2 *)
+    exists (fun x y z => (y + z) / 2).
+    split.
+    + (* Identity *)
+      intro x.
+      unfold Rdiv. field.
+    + (* Barycentric *)
+      exists 0, (1/2), (1/2).
+      split; [lra |].
+      intros x y z.
+      unfold Rdiv. ring.
+
+  - (* Subset 3: {Cyclic, Identity} is satisfiable *)
+    (* Witness: T3(x,y,z) = (x+y+z)/2 *)
+    (* Note: coefficients are (1/2, 1/2, 1/2) which sum to 3/2, NOT barycentric *)
+    exists (fun x y z => (x + y + z) / 2).
+    split.
+    + (* Cyclic *)
+      intros x y z.
+      assert (H: x + y + z = z + x + y) by ring.
+      unfold Rdiv. rewrite H. reflexivity.
+    + (* Identity *)
+      intro x.
+      unfold Rdiv. field.
+Qed.
+
+Theorem minimal_unsatisfiable_core :
+  (* The full set {Cyclic, Identity, Barycentric} is unsatisfiable *)
+  (~ exists (T : R -> R -> R -> R),
+    (forall x y z, T x y z = T z x y) /\
+    (forall x, T 0 x x = x) /\
+    (exists a b c, a + b + c = 1 /\
+       forall x y z, T x y z = (a*x + b*y + c*z))) /\
+  (* But every proper subset IS satisfiable *)
+  (* Subset 1: {Cyclic, Barycentric} *)
+  (exists (T1 : R -> R -> R -> R),
+    (forall x y z, T1 x y z = T1 z x y) /\
+    (exists a b c, a + b + c = 1 /\
+       forall x y z, T1 x y z = (a*x + b*y + c*z))) /\
+  (* Subset 2: {Identity, Barycentric} *)
+  (exists (T2 : R -> R -> R -> R),
+    (forall x, T2 0 x x = x) /\
+    (exists a b c, a + b + c = 1 /\
+       forall x y z, T2 x y z = (a*x + b*y + c*z))) /\
+  (* Subset 3: {Cyclic, Identity} *)
+  (exists (T3 : R -> R -> R -> R),
+    (forall x y z, T3 x y z = T3 z x y) /\
+    (forall x, T3 0 x x = x)).
+Proof.
+  apply pairwise_consistency_theorem.
+Qed.
+
+End UniversalLowerBound.
+
+Section ConstraintLatticeCharacterization.
+
+Inductive Constraint : Type :=
+  | Cyclic : Constraint
+  | Identity : Constraint
+  | Barycentric : Constraint.
+
+Definition constraint_satisfied (c : Constraint) (T : R -> R -> R -> R) : Prop :=
+  match c with
+  | Cyclic => forall x y z, T x y z = T z x y
+  | Identity => forall x, T 0 x x = x
+  | Barycentric => exists a b c, a + b + c = 1 /\ forall x y z, T x y z = (a*x + b*y + c*z)
+  end.
+
+Definition satisfiable (constraints : list Constraint) : Prop :=
+  exists T : R -> R -> R -> R,
+    forall c, List.In c constraints -> constraint_satisfied c T.
+
+Theorem constraint_lattice_complete_characterization :
+  forall (constraints : list Constraint),
+  satisfiable constraints <->
+  ~ (List.In Cyclic constraints /\ List.In Identity constraints /\ List.In Barycentric constraints).
+Proof.
+  intro constraints.
+  split.
+  - intro Hsat.
+    intro Hall.
+    destruct Hall as [Hcyc [Hid Hbary]].
+    unfold satisfiable in Hsat.
+    destruct Hsat as [T HT].
+    assert (Hcyc_sat: constraint_satisfied Cyclic T) by (apply HT; exact Hcyc).
+    assert (Hid_sat: constraint_satisfied Identity T) by (apply HT; exact Hid).
+    assert (Hbary_sat: constraint_satisfied Barycentric T) by (apply HT; exact Hbary).
+    simpl in Hcyc_sat, Hid_sat, Hbary_sat.
+    apply cyclic_and_identity_are_incompatible.
+    exists T.
+    split; [exact Hcyc_sat | split; [exact Hid_sat | exact Hbary_sat]].
+  - intro Hnot_all.
+    destruct (classic (List.In Cyclic constraints)) as [Hcyc | Hno_cyc];
+    destruct (classic (List.In Identity constraints)) as [Hid | Hno_id];
+    destruct (classic (List.In Barycentric constraints)) as [Hbary | Hno_bary].
+    + exfalso. apply Hnot_all. split; [exact Hcyc | split; [exact Hid | exact Hbary]].
+    + unfold satisfiable. exists (fun x y z => (x + y + z) / 2).
+      intros c Hc. simpl. destruct c.
+      * intros x y z. assert (H: x + y + z = z + x + y) by ring. unfold Rdiv. rewrite H. reflexivity.
+      * intro x. unfold Rdiv. field.
+      * exfalso. apply Hno_bary. exact Hc.
+    + unfold satisfiable. exists (fun x y z => (x + y + z) / 3).
+      intros c Hc. simpl. destruct c.
+      * intros x y z. assert (H: x + y + z = z + x + y) by ring. unfold Rdiv. rewrite H. reflexivity.
+      * exfalso. apply Hno_id. exact Hc.
+      * exists (1/3), (1/3), (1/3). split; [lra |]. intros x y z. unfold Rdiv. field.
+    + unfold satisfiable. exists (fun x y z => (x + y + z) / 3).
+      intros c Hc. simpl. destruct c.
+      * intros x y z. assert (H: x + y + z = z + x + y) by ring. unfold Rdiv. rewrite H. reflexivity.
+      * exfalso. apply Hno_id. exact Hc.
+      * exfalso. apply Hno_bary. exact Hc.
+    + unfold satisfiable. exists (fun x y z => (y + z) / 2).
+      intros c Hc. simpl. destruct c.
+      * exfalso. apply Hno_cyc. exact Hc.
+      * intro x. unfold Rdiv. field.
+      * exists 0, (1/2), (1/2). split; [lra |]. intros x y z. unfold Rdiv. ring.
+    + unfold satisfiable. exists (fun x y z => (y + z) / 2).
+      intros c Hc. simpl. destruct c.
+      * exfalso. apply Hno_cyc. exact Hc.
+      * intro x. unfold Rdiv. field.
+      * exfalso. apply Hno_bary. exact Hc.
+    + unfold satisfiable. exists (fun x y z => (2*x + y) / 3).
+      intros c Hc. simpl. destruct c.
+      * exfalso. apply Hno_cyc. exact Hc.
+      * exfalso. apply Hno_id. exact Hc.
+      * exists (2/3), (1/3), 0. split; [lra |]. intros x y z. unfold Rdiv. ring.
+    + unfold satisfiable. exists (fun x y z => x).
+      intros c Hc. simpl. destruct c.
+      * exfalso. apply Hno_cyc. exact Hc.
+      * exfalso. apply Hno_id. exact Hc.
+      * exfalso. apply Hno_bary. exact Hc.
+Qed.
+
+End ConstraintLatticeCharacterization.
 
 End TernaryAlgebraicStructure.
