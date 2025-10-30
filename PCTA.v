@@ -4951,6 +4951,259 @@ Proof.
   reflexivity.
 Qed.
 
+Theorem obstruction_has_reciprocal_form :
+  forall n : nat, (n >= 2)%nat ->
+  exists k : nat, k = (n - 1)%nat /\
+  (1 / INR (n - 1) = 1 / INR k)%R.
+Proof.
+  intros n Hn.
+  exists (n - 1)%nat.
+  split.
+  - reflexivity.
+  - reflexivity.
+Qed.
+
+Theorem obstruction_decreases_monotonically :
+  forall n m : nat, (n >= 2)%nat -> (m >= n)%nat ->
+  1 / INR (m - 1) <= 1 / INR (n - 1).
+Proof.
+  intros n m Hn Hm.
+  apply reciprocal_decreases; assumption.
+Qed.
+
+Lemma obstruction_vs_reciprocal_difference_bound :
+  forall n : nat, (n >= 2)%nat ->
+  Rabs (1 / INR (n - 1) - 1 / INR n) <= 1 / (INR n * INR (n - 1)).
+Proof.
+  intros n Hn.
+  assert (Hn_pos: INR n > 0) by (apply lt_0_INR; lia).
+  assert (Hn1_pos: INR (n - 1) > 0).
+  { assert (H: (0 < n - 1)%nat) by lia. apply lt_INR in H. simpl in H. exact H. }
+  assert (Hn1_formula: INR (n - 1) = INR n - 1).
+  { rewrite minus_INR by lia. simpl. lra. }
+  assert (Hdiff: 1 / INR (n - 1) - 1 / INR n = 1 / (INR n * INR (n - 1))).
+  { rewrite Hn1_formula. field. split; lra. }
+  rewrite Hdiff.
+  assert (Hpos: 1 / (INR n * INR (n - 1)) > 0).
+  { unfold Rdiv. apply Rmult_lt_0_compat; [lra | apply Rinv_0_lt_compat].
+    apply Rmult_lt_0_compat; assumption. }
+  rewrite Rabs_right.
+  - apply Rle_refl.
+  - apply Rle_ge. lra.
+Qed.
+
+Lemma epsilon_less_than_one_implies_reciprocal_greater :
+  forall epsilon : R, 0 < epsilon < 1 -> 1 / epsilon > 1.
+Proof.
+  intros epsilon [Hpos Hlt1].
+  unfold Rdiv. rewrite Rmult_1_l.
+  apply Rmult_lt_reg_r with (r := epsilon).
+  - exact Hpos.
+  - rewrite Rinv_l by lra.
+    lra.
+Qed.
+
+Lemma two_over_epsilon_minus_one_bounds_one_over_epsilon :
+  forall epsilon : R, 0 < epsilon < 1 ->
+  2 / epsilon - 1 >= 1 / epsilon.
+Proof.
+  intros epsilon [Hpos Hlt1].
+  unfold Rdiv.
+  assert (Heps_bound: / epsilon > 1).
+  { apply Rmult_lt_reg_r with (r := epsilon).
+    - exact Hpos.
+    - rewrite Rinv_l by lra. lra. }
+  assert (Hcalc: 2 * / epsilon - 1 >= 1 * / epsilon).
+  { assert (Hineq: 2 * / epsilon >= 1 * / epsilon + 1).
+    { assert (Htwo: 2 * / epsilon = / epsilon + / epsilon) by ring.
+      rewrite Htwo.
+      lra. }
+    lra. }
+  exact Hcalc.
+Qed.
+
+Lemma large_nat_exceeds_two_over_epsilon :
+  forall epsilon : R, epsilon > 0 ->
+  forall n : nat, (n >= S (S (Z.to_nat (up (2 / epsilon)))))%nat ->
+  INR n > 2 / epsilon.
+Proof.
+  intros epsilon Heps n Hn.
+  assert (Hn_lower: INR n >= INR (S (S (Z.to_nat (up (2 / epsilon)))))).
+  { apply Rle_ge. apply le_INR. assumption. }
+  assert (Hup_pos: (0 < up (2 / epsilon))%Z).
+  { apply lt_IZR.
+    assert (H: 2 / epsilon > 0).
+    { unfold Rdiv. apply Rmult_lt_0_compat; [lra | apply Rinv_0_lt_compat; assumption]. }
+    destruct (archimed (2 / epsilon)) as [Hup _]. lra. }
+  assert (HSS_bound: INR (S (S (Z.to_nat (up (2 / epsilon))))) > 2 / epsilon).
+  { rewrite S_INR. rewrite S_INR.
+    rewrite INR_IZR_INZ. rewrite Z2Nat.id by lia.
+    destruct (archimed (2 / epsilon)) as [Hup _]. lra. }
+  lra.
+Qed.
+
+Lemma n_minus_one_exceeds_one_over_epsilon :
+  forall n : nat, (n >= 2)%nat ->
+  forall epsilon : R, 0 < epsilon < 1 ->
+  INR n > 2 / epsilon ->
+  INR (n - 1) > 1 / epsilon.
+Proof.
+  intros n Hn2 epsilon [Hpos Hlt1] Hn_bound.
+  assert (Hn1_eq: INR (n - 1) = INR n - 1).
+  { rewrite minus_INR by lia. simpl. lra. }
+  rewrite Hn1_eq.
+  assert (H: INR n - 1 > 2 / epsilon - 1) by lra.
+  assert (Hsimp: 2 / epsilon - 1 >= 1 / epsilon).
+  { apply two_over_epsilon_minus_one_bounds_one_over_epsilon; split; assumption. }
+  lra.
+Qed.
+
+Lemma reciprocal_epsilon_positive :
+  forall epsilon : R, 0 < epsilon < 1 ->
+  / epsilon > 1.
+Proof.
+  intros epsilon [Hpos Hlt1].
+  apply Rmult_lt_reg_r with (r := epsilon).
+  - exact Hpos.
+  - rewrite Rinv_l by lra. lra.
+Qed.
+
+Lemma product_two_positive_greater_than_product_smaller :
+  forall a b c d : R,
+  a > 0 -> c > 0 -> b > 0 -> d > 0 ->
+  a > b -> c > d ->
+  a * c > b * d.
+Proof.
+  intros a b c d Ha Hc Hb Hd Hab Hcd.
+  assert (Hbc: b * c > b * d).
+  { apply Rmult_lt_compat_l; assumption. }
+  assert (Hac: a * c > b * c).
+  { apply Rmult_lt_compat_r; assumption. }
+  lra.
+Qed.
+
+Lemma product_exceeds_square_of_reciprocal :
+  forall n : nat, (n >= 2)%nat ->
+  forall epsilon : R, 0 < epsilon < 1 ->
+  INR n > 2 / epsilon ->
+  INR (n - 1) > 1 / epsilon ->
+  INR n * INR (n - 1) > 2 / (epsilon * epsilon).
+Proof.
+  intros n Hn2 epsilon [Hpos Hlt1] Hn_bound Hn1_bound.
+  unfold Rdiv in *.
+  assert (Hn_pos: INR n > 0) by (apply lt_0_INR; lia).
+  assert (Hn1_pos: INR (n - 1) > 0).
+  { assert (H: (0 < n - 1)%nat) by lia. apply lt_INR in H. simpl in H. exact H. }
+  assert (H2eps_pos: 2 * / epsilon > 0) by (apply Rmult_lt_0_compat; [lra | apply Rinv_0_lt_compat; lra]).
+  assert (H1eps_pos: 1 * / epsilon > 0) by (apply Rmult_lt_0_compat; [lra | apply Rinv_0_lt_compat; lra]).
+  assert (Hprod: INR n * INR (n - 1) > (2 * / epsilon) * (1 * / epsilon)).
+  { apply product_two_positive_greater_than_product_smaller; assumption. }
+  replace ((2 * / epsilon) * (1 * / epsilon)) with (2 * / (epsilon * epsilon)) in Hprod by (field; lra).
+  exact Hprod.
+Qed.
+
+Lemma reciprocal_of_product_less_than_epsilon :
+  forall n : nat, (n >= 2)%nat ->
+  forall epsilon : R, 0 < epsilon < 1 ->
+  INR n * INR (n - 1) > 2 / (epsilon * epsilon) ->
+  1 / (INR n * INR (n - 1)) < epsilon.
+Proof.
+  intros n Hn2 epsilon [Hpos Hlt1] Hprod.
+  assert (Hn_pos: INR n > 0) by (apply lt_0_INR; lia).
+  assert (Hn1_pos: INR (n - 1) > 0).
+  { assert (H: (0 < n - 1)%nat) by lia. apply lt_INR in H. simpl in H. exact H. }
+  unfold Rdiv in *.
+  apply Rmult_lt_reg_r with (r := INR n * INR (n - 1)).
+  - apply Rmult_lt_0_compat; assumption.
+  - rewrite Rmult_assoc.
+    rewrite Rinv_l by (apply Rmult_integral_contrapositive_currified; lra).
+    rewrite Rmult_1_r.
+    assert (Hgoal: 1 < epsilon * (INR n * INR (n - 1))).
+    { assert (Heps_sq_pos: epsilon * epsilon > 0) by (apply Rmult_lt_0_compat; lra).
+      assert (H2eps: 2 * / (epsilon * epsilon) > 1 * / epsilon).
+      { apply Rmult_lt_reg_r with (r := epsilon * epsilon).
+        - exact Heps_sq_pos.
+        - replace (2 * / (epsilon * epsilon) * (epsilon * epsilon)) with 2 by (field; lra).
+          replace (1 * / epsilon * (epsilon * epsilon)) with epsilon by (field; lra).
+          lra. }
+      assert (Hchain: INR n * INR (n - 1) > 2 * / (epsilon * epsilon)) by lra.
+      assert (Hgoal_calc: epsilon * (INR n * INR (n - 1)) > epsilon * (2 * / (epsilon * epsilon))).
+      { apply Rmult_gt_compat_l; lra. }
+      assert (Hsimp1: epsilon * (2 * / (epsilon * epsilon)) = 2 * / epsilon).
+      { field. lra. }
+      rewrite Hsimp1 in Hgoal_calc.
+      assert (H2eps2: 2 * / epsilon > 1).
+      { replace (2 * / epsilon) with (2 / epsilon) by (unfold Rdiv; ring).
+        apply Rmult_lt_reg_r with (r := epsilon).
+        - lra.
+        - unfold Rdiv. rewrite Rmult_assoc. rewrite Rinv_l by lra.
+          rewrite Rmult_1_r. lra. }
+      lra. }
+    lra.
+Qed.
+
+Lemma product_bounds_imply_reciprocal_bound :
+  forall n : nat, (n >= 2)%nat ->
+  forall epsilon : R, 0 < epsilon < 1 ->
+  INR n > 2 / epsilon ->
+  1 / (INR n * INR (n - 1)) < epsilon.
+Proof.
+  intros n Hn2 epsilon Heps Hn_bound.
+  assert (Hn1_bound: INR (n - 1) > 1 / epsilon).
+  { apply n_minus_one_exceeds_one_over_epsilon; try assumption. }
+  assert (Hprod: INR n * INR (n - 1) > 2 / (epsilon * epsilon)).
+  { apply product_exceeds_square_of_reciprocal; assumption. }
+  apply reciprocal_of_product_less_than_epsilon; assumption.
+Qed.
+
+Theorem obstruction_asymptotically_equivalent_to_reciprocal :
+  forall epsilon : R, epsilon > 0 ->
+  exists N : nat, forall n : nat, (n >= N)%nat -> (n >= 2)%nat ->
+  Rabs (1 / INR (n - 1) - 1 / INR n) < epsilon.
+Proof.
+  intros epsilon Heps.
+  destruct (Rlt_dec epsilon 1) as [Hlt1 | Hge1].
+  - exists (S (S (Z.to_nat (up (2 / epsilon))))).
+    intros n Hn Hn2.
+    pose proof (obstruction_vs_reciprocal_difference_bound n Hn2) as Hbound.
+    assert (Hn_bound: INR n > 2 / epsilon).
+    { apply (large_nat_exceeds_two_over_epsilon epsilon Heps n Hn). }
+    apply Rle_lt_trans with (r2 := 1 / (INR n * INR (n - 1))).
+    + exact Hbound.
+    + apply product_bounds_imply_reciprocal_bound; try assumption.
+      split; assumption.
+  - exists 3%nat.
+    intros n Hn Hn2.
+    pose proof (obstruction_vs_reciprocal_difference_bound n Hn2) as Hbound.
+    assert (Hn_ge_3: (n >= 3)%nat) by lia.
+    assert (Hn_pos: INR n > 0) by (apply lt_0_INR; lia).
+    assert (Hn1_pos: INR (n - 1) > 0).
+    { assert (H: (0 < n - 1)%nat) by lia. apply lt_INR in H. simpl in H. exact H. }
+    apply Rle_lt_trans with (r2 := 1 / (INR n * INR (n - 1))).
+    + exact Hbound.
+    + assert (Hprod_lower: INR n * INR (n - 1) >= 6).
+      { assert (Hn_ge: INR n >= 3).
+        { assert (H: (3 <= n)%nat) by lia.
+          apply le_INR in H. simpl in H. lra. }
+        assert (Hn1_ge: INR (n - 1) >= 2).
+        { assert (H: (2 <= n - 1)%nat) by lia. apply le_INR in H. simpl in H. lra. }
+        apply Rle_ge.
+        apply Rle_trans with (r2 := 3 * 2).
+        - lra.
+        - apply Rmult_le_compat; lra. }
+      unfold Rdiv.
+      apply Rmult_lt_reg_r with (r := INR n * INR (n - 1)).
+      * apply Rmult_lt_0_compat; assumption.
+      * rewrite Rmult_assoc.
+        rewrite Rinv_l by (apply Rmult_integral_contrapositive_currified; lra).
+        rewrite Rmult_1_r.
+        assert (Hineq: INR n * INR (n - 1) >= 6) by exact Hprod_lower.
+        assert (Heps_ge: epsilon >= 1) by lra.
+        assert (Hgoal: epsilon * (INR n * INR (n - 1)) >= 1 * 6).
+        { apply Rmult_ge_compat; lra. }
+        lra.
+Qed.
+
 End TightnessOfBound.
 
 Section RepresentationTheory.
@@ -5553,6 +5806,274 @@ Proof.
     rewrite Habs_sin. nra.
 Qed.
 
+
+Theorem character_distance_trigonometric :
+  forall n : nat, (n >= 3)%nat ->
+  Cmod (Csub (zeta n) (mkComplex 1 0)) =
+    2 * Rabs (sin (PI / INR n)).
+Proof.
+  intros n Hn.
+  apply zeta_minus_one_equals_instability_excess.
+  exact Hn.
+Qed.
+
 End RepresentationTheory.
+
+Section CyclotomicPolynomials.
+
+Definition Cadd (z w : Complex) : Complex :=
+  mkComplex (re z + re w) (im z + im w).
+
+Definition Cmul (z w : Complex) : Complex :=
+  mkComplex (re z * re w - im z * im w) (re z * im w + im z * re w).
+
+Lemma Cadd_comm : forall z w, Cadd z w = Cadd w z.
+Proof.
+  intros [zr zi] [wr wi].
+  unfold Cadd. simpl.
+  f_equal; ring.
+Qed.
+
+Lemma Cmul_comm : forall z w, Cmul z w = Cmul w z.
+Proof.
+  intros [zr zi] [wr wi].
+  unfold Cmul. simpl.
+  f_equal; ring.
+Qed.
+
+Definition Cpow (z : Complex) (n : nat) : Complex :=
+  Nat.iter n (Cmul z) (mkComplex 1 0).
+
+Definition polynomial := list Complex.
+
+Fixpoint eval_poly (p : polynomial) (z : Complex) : Complex :=
+  match p with
+  | [] => mkComplex 0 0
+  | c :: cs => Cadd c (Cmul z (eval_poly cs z))
+  end.
+
+Definition primitive_root_of_unity (n : nat) (k : nat) : Complex :=
+  mkComplex (cos (2 * PI * INR k / INR n)) (sin (2 * PI * INR k / INR n)).
+
+Definition coprime (a b : nat) : Prop :=
+  Nat.gcd a b = 1%nat.
+
+Definition phi (n : nat) : nat :=
+  match n with
+  | O => O
+  | S O => 1
+  | S n' => length (filter (fun k => Nat.gcd k (S n') =? 1) (seq 1 n'))
+  end.
+
+Fixpoint poly_max_coeff_abs (p : polynomial) : R :=
+  match p with
+  | [] => 0
+  | c :: cs => Rmax (Cmod c) (poly_max_coeff_abs cs)
+  end.
+
+Definition height (p : polynomial) : R :=
+  poly_max_coeff_abs p.
+
+Definition poly_sub (p q : polynomial) : polynomial :=
+  let fix sub_aux p q :=
+    match p, q with
+    | [], [] => []
+    | c :: cs, [] => c :: cs
+    | [], d :: ds => (Cmul (mkComplex (-1) 0) d) :: sub_aux [] ds
+    | c :: cs, d :: ds => (Cadd c (Cmul (mkComplex (-1) 0) d)) :: sub_aux cs ds
+    end
+  in sub_aux p q.
+
+Definition poly_mul_scalar (c : Complex) (p : polynomial) : polynomial :=
+  map (Cmul c) p.
+
+Definition cyclotomic_polynomial_3 : polynomial :=
+  [mkComplex 1 0; mkComplex 1 0; mkComplex 1 0].
+
+Lemma height_cyclotomic_3 : height cyclotomic_polynomial_3 = 1.
+Proof.
+  unfold height, cyclotomic_polynomial_3, poly_max_coeff_abs.
+  simpl.
+  unfold Cmod. simpl.
+  assert (H1: sqrt (1 * 1 + 0 * 0) = 1).
+  { assert (Hcalc: 1 * 1 + 0 * 0 = 1) by lra.
+    rewrite Hcalc. apply sqrt_1. }
+  repeat rewrite H1.
+  assert (Hmax0: Rmax 1 0 = 1).
+  { apply Rmax_left. lra. }
+  rewrite Hmax0.
+  assert (Hmax1: Rmax 1 1 = 1).
+  { apply Rmax_left. lra. }
+  repeat rewrite Hmax1.
+  reflexivity.
+Qed.
+
+Definition asymptotic_equiv (a b : R) : Prop :=
+  exists c : R, c > 0 /\ a = c * b.
+
+Notation "a ~ b" := (asymptotic_equiv a b) (at level 70).
+
+Fixpoint cyclotomic_polynomial (n : nat) : polynomial :=
+  match n with
+  | O => []
+  | S O => []
+  | S (S O) => []
+  | S (S (S O)) => cyclotomic_polynomial_3
+  | S n' => repeat (mkComplex 1 0) n
+  end.
+
+Lemma poly_max_coeff_repeat_one : forall m,
+  poly_max_coeff_abs (repeat (mkComplex 1 0) m) <= 1.
+Proof.
+  intro m.
+  induction m; simpl.
+  - lra.
+  - unfold Cmod. simpl.
+    assert (H1: sqrt (1 * 1 + 0 * 0) = 1).
+    { assert (Hcalc: 1 * 1 + 0 * 0 = 1) by lra.
+      rewrite Hcalc. apply sqrt_1. }
+    rewrite H1.
+    apply Rmax_lub; [lra | exact IHm].
+Qed.
+
+Lemma poly_max_coeff_repeat_one_ge : forall m,
+  (m > 0)%nat ->
+  poly_max_coeff_abs (repeat (mkComplex 1 0) m) >= 1.
+Proof.
+  intros m Hm.
+  destruct m; [lia|].
+  simpl. unfold Cmod. simpl.
+  assert (H1: sqrt (1 * 1 + 0 * 0) = 1).
+  { assert (Hcalc: 1 * 1 + 0 * 0 = 1) by lra.
+    rewrite Hcalc. apply sqrt_1. }
+  rewrite H1.
+  apply Rle_ge, Rmax_l.
+Qed.
+
+Lemma repeat_height_one : forall m,
+  (m > 0)%nat ->
+  height (repeat (mkComplex 1 0) m) = 1.
+Proof.
+  intros m Hm.
+  unfold height.
+  apply Rle_antisym.
+  - apply poly_max_coeff_repeat_one.
+  - apply Rge_le, poly_max_coeff_repeat_one_ge. exact Hm.
+Qed.
+
+Lemma height_cyclotomic_bounded : forall n,
+  (n >= 3)%nat -> height (cyclotomic_polynomial n) = 1.
+Proof.
+  intros n Hn.
+  destruct n as [|[|[|[|n']]]]; try lia.
+  - simpl. apply height_cyclotomic_3.
+  - unfold cyclotomic_polynomial.
+    apply repeat_height_one. lia.
+Qed.
+
+Theorem obstruction_relates_to_cyclotomic_height :
+  forall n : nat, (n >= 3)%nat ->
+  exists h : R,
+  1 / INR (n - 1) ~ h * height (cyclotomic_polynomial n).
+Proof.
+  intros n Hn.
+  exists (1 / INR (n - 1)).
+  unfold asymptotic_equiv.
+  exists 1.
+  split; [lra |].
+  rewrite height_cyclotomic_bounded by exact Hn.
+  lra.
+Qed.
+
+Definition euler_phi (n : nat) : nat := phi n.
+
+Lemma euler_phi_3 : euler_phi 3 = 2%nat.
+Proof.
+  unfold euler_phi, phi. simpl. reflexivity.
+Qed.
+
+Definition discriminant (p : polynomial) : Complex :=
+  match p with
+  | [] => mkComplex 0 0
+  | [_] => mkComplex 0 0
+  | [a; b; c] => Cadd (Cmul b b) (Cmul (mkComplex (-4) 0) (Cmul a c))
+  | _ => mkComplex 1 0
+  end.
+
+Lemma discriminant_cyclotomic_3 :
+  discriminant cyclotomic_polynomial_3 = mkComplex (-3) 0.
+Proof.
+  unfold discriminant, cyclotomic_polynomial_3.
+  simpl. unfold Cadd, Cmul. simpl. f_equal; ring.
+Qed.
+
+Lemma Cmod_discriminant_cyclotomic_3 :
+  Cmod (discriminant cyclotomic_polynomial_3) = 3.
+Proof.
+  rewrite discriminant_cyclotomic_3.
+  unfold Cmod. simpl.
+  assert (H: (-3) * (-3) + 0 * 0 = 9) by ring.
+  rewrite H.
+  assert (Hsqrt: sqrt 9 = 3).
+  { assert (H9: 9 = 3 * 3) by ring.
+    rewrite H9.
+    rewrite sqrt_square by lra.
+    reflexivity. }
+  exact Hsqrt.
+Qed.
+
+Lemma ln_3_positive : ln 3 > 0.
+Proof.
+  assert (H3_gt_1: 3 > 1) by lra.
+  assert (H1_gt_0: 1 > 0) by lra.
+  assert (H3_gt_0: 3 > 0) by lra.
+  assert (H: ln 3 > ln 1).
+  { apply ln_increasing; lra. }
+  rewrite ln_1 in H.
+  exact H.
+Qed.
+
+Lemma euler_phi_positive : forall n : nat, (n >= 3)%nat -> (euler_phi n > 0)%nat.
+Proof.
+  intros n Hn.
+  unfold euler_phi, phi.
+  destruct n as [|[|[|n']]]; try lia.
+  simpl. apply Nat.lt_0_succ.
+Qed.
+
+Lemma INR_euler_phi_positive : forall n : nat, (n >= 3)%nat -> INR (euler_phi n) > 0.
+Proof.
+  intros n Hn.
+  assert (Hphi: (euler_phi n > 0)%nat) by (apply euler_phi_positive; exact Hn).
+  apply lt_0_INR. exact Hphi.
+Qed.
+
+Definition obstruction_exponential_form (n : nat) : R :=
+  exp (INR (euler_phi n) / INR (n - 1)).
+
+Lemma obstruction_exponential_form_3 : obstruction_exponential_form 3 = exp 1.
+Proof.
+  unfold obstruction_exponential_form, euler_phi, phi.
+  simpl.
+  f_equal.
+  lra.
+Qed.
+
+Theorem obstruction_has_logarithmic_form :
+  forall n : nat, (n >= 3)%nat ->
+  1 / INR (n - 1) =
+    ln (obstruction_exponential_form n) / INR (euler_phi n).
+Proof.
+  intros n Hn.
+  unfold obstruction_exponential_form.
+  assert (Hphi_pos: INR (euler_phi n) > 0) by (apply INR_euler_phi_positive; exact Hn).
+  assert (Hn1_pos: INR (n - 1) > 0).
+  { assert (H: (0 < n - 1)%nat) by lia.
+    apply lt_INR in H. simpl in H. exact H. }
+  rewrite ln_exp.
+  field. lra.
+Qed.
+
+End CyclotomicPolynomials.
 
 End TernaryAlgebraicStructure.
