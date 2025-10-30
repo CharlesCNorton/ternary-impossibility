@@ -4539,4 +4539,170 @@ Qed.
 
 End ConstraintLatticeCharacterization.
 
+Section AlgebraicGeneralization.
+
+Declare Scope field_scope.
+
+Class Field (F : Type) := {
+  Fzero : F;
+  Fone : F;
+  Fadd : F -> F -> F;
+  Fmul : F -> F -> F;
+  Fneg : F -> F;
+  Finv : F -> F;
+
+  Fadd_comm : forall x y, Fadd x y = Fadd y x;
+  Fadd_assoc : forall x y z, Fadd (Fadd x y) z = Fadd x (Fadd y z);
+  Fadd_0_l : forall x, Fadd Fzero x = x;
+  Fadd_neg : forall x, Fadd x (Fneg x) = Fzero;
+
+  Fmul_comm : forall x y, Fmul x y = Fmul y x;
+  Fmul_assoc : forall x y z, Fmul (Fmul x y) z = Fmul x (Fmul y z);
+  Fmul_1_l : forall x, Fmul Fone x = x;
+  Fmul_inv : forall x, x <> Fzero -> Fmul x (Finv x) = Fone;
+
+  Fmul_add_distr_l : forall x y z, Fmul x (Fadd y z) = Fadd (Fmul x y) (Fmul x z);
+
+  F_one_neq_zero : Fone <> Fzero
+}.
+
+Notation "0" := Fzero : field_scope.
+Notation "1" := Fone : field_scope.
+Notation "x + y" := (Fadd x y) : field_scope.
+Notation "x * y" := (Fmul x y) : field_scope.
+Notation "- x" := (Fneg x) : field_scope.
+
+Delimit Scope field_scope with F.
+
+Lemma field_add_0_r {F : Type} `{Field F} : forall x, (x + 0 = x)%F.
+Proof.
+  intro x.
+  rewrite Fadd_comm.
+  apply Fadd_0_l.
+Qed.
+
+Lemma field_add_cancel_l {F : Type} `{Field F} : forall x y z, (x + y = x + z)%F -> y = z.
+Proof.
+  intros x y z Heq.
+  assert (Hcancel: (- x + (x + y) = - x + (x + z))%F).
+  { f_equal. exact Heq. }
+  do 2 rewrite <- Fadd_assoc in Hcancel.
+  assert (Hleft: (- x + x)%F = (x + - x)%F) by apply Fadd_comm.
+  rewrite Hleft in Hcancel.
+  rewrite Fadd_neg in Hcancel.
+  do 2 rewrite Fadd_0_l in Hcancel.
+  exact Hcancel.
+Qed.
+
+Lemma field_mul_0_r {F : Type} `{Field F} : forall x, (x * 0 = 0)%F.
+Proof.
+  intro x.
+  assert (Heq: (x * 0)%F = (x * (0 + 0))%F).
+  { f_equal. rewrite Fadd_0_l. reflexivity. }
+  rewrite Fmul_add_distr_l in Heq.
+  assert (Heq2: (x * 0 + 0)%F = (x * 0 + x * 0)%F).
+  { rewrite field_add_0_r. exact Heq. }
+  apply field_add_cancel_l in Heq2.
+  symmetry.
+  exact Heq2.
+Qed.
+
+Lemma field_mul_1_r {F : Type} `{Field F} : forall x, (x * 1 = x)%F.
+Proof.
+  intro x.
+  rewrite Fmul_comm.
+  apply Fmul_1_l.
+Qed.
+
+Lemma field_mul_add_distr_r {F : Type} `{Field F} : forall x y z, ((x + y) * z = x * z + y * z)%F.
+Proof.
+  intros x y z.
+  rewrite Fmul_comm.
+  rewrite Fmul_add_distr_l.
+  rewrite (Fmul_comm z x).
+  rewrite (Fmul_comm z y).
+  reflexivity.
+Qed.
+
+Lemma affine_cyclic_forces_equal_coeffs {F : Type} `{Field F} :
+  forall (T : F -> F -> F -> F) (a b c : F),
+  (forall x y z, T x y z = T z x y) ->
+  (forall x y z, T x y z = (a*x + b*y + c*z)%F) ->
+  a = b /\ b = c.
+Proof.
+  intros T a b c Hcyc Haff.
+  split.
+  - pose proof (Hcyc 1%F 0%F 0%F) as H100.
+    do 2 rewrite Haff in H100.
+    assert (Hlhs: (a * 1 + b * 0 + c * 0)%F = a).
+    { rewrite field_mul_1_r. do 2 rewrite field_mul_0_r. do 2 rewrite field_add_0_r. reflexivity. }
+    assert (Hrhs: (a * 0 + b * 1 + c * 0)%F = b).
+    { rewrite field_mul_1_r. do 2 rewrite field_mul_0_r. rewrite Fadd_0_l. rewrite field_add_0_r. reflexivity. }
+    rewrite Hlhs in H100. rewrite Hrhs in H100. exact H100.
+  - pose proof (Hcyc 0%F 1%F 0%F) as H010.
+    do 2 rewrite Haff in H010.
+    assert (Hlhs: (a * 0 + b * 1 + c * 0)%F = b).
+    { rewrite field_mul_1_r. do 2 rewrite field_mul_0_r. rewrite Fadd_0_l. rewrite field_add_0_r. reflexivity. }
+    assert (Hrhs: (a * 0 + b * 0 + c * 1)%F = c).
+    { rewrite field_mul_1_r. do 2 rewrite field_mul_0_r. do 2 rewrite Fadd_0_l. reflexivity. }
+    rewrite Hlhs in H010. rewrite Hrhs in H010. exact H010.
+Qed.
+
+Lemma affine_identity_forces_first_coeff_zero {F : Type} `{Field F} :
+  forall (T : F -> F -> F -> F) (a b c : F),
+  (forall x, T 0%F x x = x) ->
+  (a + b + c = 1)%F ->
+  (forall x y z, T x y z = (a*x + b*y + c*z)%F) ->
+  (a = 0 /\ (b + c = 1))%F.
+Proof.
+  intros T a b c Hid Hsum Haff.
+  assert (Hid1: T 0%F 1%F 1%F = 1%F) by apply Hid.
+  rewrite Haff in Hid1.
+  assert (Hcalc: (a * 0 + b * 1 + c * 1 = 1)%F) by exact Hid1.
+  rewrite field_mul_0_r in Hcalc.
+  rewrite Fadd_0_l in Hcalc.
+  do 2 rewrite field_mul_1_r in Hcalc.
+  split.
+  - assert (Heq: (a + (b + c))%F = (0 + (b + c))%F).
+    { assert (Hlhs: (a + (b + c))%F = 1%F) by (rewrite <- Fadd_assoc; exact Hsum).
+      assert (Hrhs: (0 + (b + c))%F = 1%F) by (rewrite Fadd_0_l; exact Hcalc).
+      rewrite Hlhs. rewrite Hrhs. reflexivity. }
+    assert (Hres: a = 0%F).
+    { assert (Heq_comm: ((b + c) + a)%F = ((b + c) + 0)%F).
+      { do 2 rewrite Fadd_comm with (x := (b + c)%F). exact Heq. }
+      apply (field_add_cancel_l (b + c)%F a 0%F). exact Heq_comm. }
+    exact Hres.
+  - exact Hcalc.
+Qed.
+
+Theorem cyclic_identity_incompatible_over_any_field :
+  forall (F : Type) {field_F : Field F},
+  ~ exists (T : F -> F -> F -> F),
+    (forall x y z, T x y z = T z x y) /\
+    (forall x, T 0%F x x = x) /\
+    (exists a b c, (a + b + c)%F = 1%F /\
+       forall x y z, T x y z = (a*x + b*y + c*z)%F).
+Proof.
+  intros F field_F.
+  intro Hex.
+  destruct Hex as [T [Hcyc [Hid [a [b [c [Hsum Haff]]]]]]].
+  Open Scope field_scope.
+
+  pose proof (affine_cyclic_forces_equal_coeffs T a b c Hcyc Haff) as [Hab Hbc_eq].
+  pose proof (affine_identity_forces_first_coeff_zero T a b c Hid Hsum Haff) as [Ha_zero Hbc].
+
+  assert (Hb_zero: b = 0%F) by (rewrite <- Hab; exact Ha_zero).
+  assert (Hc_zero: c = 0%F) by (rewrite <- Hbc_eq; exact Hb_zero).
+
+  rewrite Hb_zero in Hbc.
+  rewrite Hc_zero in Hbc.
+  rewrite Fadd_0_l in Hbc.
+
+  apply F_one_neq_zero.
+  symmetry.
+  exact Hbc.
+Qed.
+
+End AlgebraicGeneralization.
+
 End TernaryAlgebraicStructure.
