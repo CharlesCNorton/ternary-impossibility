@@ -1,63 +1,99 @@
+(* Real numbers and arithmetic *)
 Require Import Reals.
+(* Linear real arithmetic tactic *)
 Require Import Lra.
+(* Linear integer arithmetic tactic *)
 Require Import Lia.
+(* Ring algebraic structure *)
 Require Import Coq.setoid_ring.Ring.
+(* Field algebraic structure *)
 Require Import Coq.setoid_ring.Field.
+(* Well-founded natural number induction *)
 Require Import Coq.Arith.Wf_nat.
+(* Classical logic axioms *)
 Require Import Coq.Logic.Classical.
+(* Axiom of choice *)
 Require Import Coq.Logic.ClassicalChoice.
+(* Constructive epsilon operator *)
 Require Import Coq.Logic.ConstructiveEpsilon.
+(* Classical description operator *)
 Require Import Coq.Logic.ClassicalDescription.
+(* Indefinite description operator *)
 Require Import Coq.Logic.IndefiniteDescription.
+(* Classical unique choice *)
 Require Import Coq.Logic.ClassicalUniqueChoice.
+(* Micromega tactics for arithmetic *)
 Require Import Psatz.
+(* Vectors with static length *)
 Require Import Coq.Vectors.Vector.
+(* Polymorphic lists *)
 Require Import List.
 Import ListNotations.
+(* List permutations *)
 Require Import Coq.Sorting.Permutation.
+(* Trigonometric functions *)
 Require Import Coq.Reals.Rtrigo.
+(* Real analysis library *)
 Require Import Coq.Reals.Ranalysis.
 
+(* Use real number notations by default *)
 Open Scope R_scope.
 
+(* Main formalization section *)
 Section TernaryAlgebraicStructure.
 
+(* Type class for algebraic structures with three-argument operation *)
 Class TernaryAlgebra (Omega : Type) := {
+  (* Three-argument operation *)
   ternary_op : Omega -> Omega -> Omega -> Omega;
+  (* Neutral element *)
   identity : Omega;
 
+  (* Operation invariant under cyclic permutation *)
   cyclic_symmetry : forall a b c,
     ternary_op a b c = ternary_op c a b;
 
+  (* Neutral element satisfies two-input recovery *)
   identity_law : forall a,
     ternary_op identity a a = a;
 }.
 
+(* Infix notation for ternary operation *)
 Notation "a ⊗ b ⊗ c" := (ternary_op a b c) (at level 40, no associativity).
 
+(* Binary operation obtained by fixing third argument to identity *)
 Definition derived_binary_op {Omega : Type} `{TernaryAlgebra Omega}
   (a b : Omega) : Omega :=
   ternary_op a b identity.
 
+(* Infix notation for derived binary operation *)
 Notation "a ◊ b" := (derived_binary_op a b) (at level 40).
 
+(* Ternary algebra equipped with real-valued norm *)
 Class ValuatedTernaryAlgebra (Omega : Type) `{TernaryAlgebra Omega} := {
+  (* Real-valued norm function *)
   valuation : Omega -> R;
 
+  (* Norm is nonnegative *)
   valuation_nonneg : forall x, 0 <= valuation x;
 
+  (* Neutral element has zero norm *)
   valuation_identity : valuation identity = 0;
 
+  (* Norm of ternary operation bounded by average of inputs *)
   valuation_barycentric : forall a b c,
     valuation (ternary_op a b c) <=
     (valuation a + valuation b + valuation c) / 2;
 
+  (* Zero norm implies identity element *)
   valuation_faithful : forall x,
     valuation x = 0 -> x = identity;
 }.
 
+(* Uniqueness results for affine representations *)
 Section UniquenessOfAffineForm.
 
+(* Cyclic and identity axioms force coefficients to be 1/2 *)
 Theorem cyclic_identity_forces_equal_coefficients :
   forall (lambda mu nu : R),
   (forall a b c, lambda*a + mu*b + nu*c = lambda*c + mu*a + nu*b) ->
@@ -81,6 +117,7 @@ Proof.
   split; [exact Heq_lambda_mu | split; [exact Heq_mu_nu | exact Hvalue]].
 Qed.
 
+(* Cyclic affine operation on reals uniquely determined as average *)
 Theorem affine_form_uniqueness_for_R :
   forall (op : R -> R -> R -> R),
   (forall a b c, op a b c = op c a b) ->
@@ -116,14 +153,17 @@ Qed.
 
 End UniquenessOfAffineForm.
 
+(* Generalization to n-ary operations *)
 Section NaryGeneralization.
 
+(* Sum of all elements in a list *)
 Fixpoint sum_list (l : list R) : R :=
   match l with
   | [] => 0
   | x :: xs => x + sum_list xs
   end.
 
+(* Sum of n copies of constant c equals n times c *)
 Lemma sum_list_const : forall (n : nat) (c : R),
   sum_list (repeat c n) = INR n * c.
 Proof.
@@ -136,6 +176,7 @@ Proof.
     rewrite H. lra.
 Qed.
 
+(* Weighted sum with constant argument factors out *)
 Lemma sum_list_map_combine_const : forall (coeffs : list R) (n : nat) (x : R),
   length coeffs = n ->
   sum_list (map (fun '(c, y) => c * y) (combine coeffs (repeat x n))) = sum_list coeffs * x.
@@ -152,6 +193,7 @@ Proof.
     lra.
 Qed.
 
+(* Length of repeated element list *)
 Lemma repeat_length : forall (A : Type) (x : A) (n : nat),
   length (repeat x n) = n.
 Proof.
@@ -159,6 +201,7 @@ Proof.
   induction n; simpl; auto.
 Qed.
 
+(* Constructor-repeat decomposition identity *)
 Lemma cons_repeat_split : forall (n : nat) (a : R),
   (n > 0)%nat ->
   0 :: repeat a (n - 1) = [0] ++ repeat a (n - 1).
@@ -166,6 +209,7 @@ Proof.
   intros. simpl. reflexivity.
 Qed.
 
+(* Sum distributes over list concatenation *)
 Lemma sum_list_app : forall (l1 l2 : list R),
   sum_list (l1 ++ l2) = sum_list l1 + sum_list l2.
 Proof.
@@ -175,12 +219,14 @@ Proof.
   - simpl. rewrite IH. lra.
 Qed.
 
+(* Combine operation on cons cells *)
 Lemma combine_cons : forall (A B : Type) (a : A) (b : B) (la : list A) (lb : list B),
   combine (a :: la) (b :: lb) = (a, b) :: combine la lb.
 Proof.
   intros. simpl. reflexivity.
 Qed.
 
+(* Map of weighted product splits at head *)
 Lemma map_combine_split : forall (c : R) (cs : list R) (x : R) (xs : list R),
   map (fun '(c0, y) => c0 * y) (combine (c :: cs) (x :: xs)) =
   c * x :: map (fun '(c0, y) => c0 * y) (combine cs xs).
@@ -188,6 +234,7 @@ Proof.
   intros. simpl. reflexivity.
 Qed.
 
+(* Identity law forces first coefficient to be zero *)
 Lemma first_coeff_from_identity : forall (n : nat) (coeffs : list R) (op : list R -> R),
   (n >= 2)%nat ->
   length coeffs = n ->
@@ -220,17 +267,21 @@ Proof.
   - exact Hcs_sum.
 Qed.
 
+(* N-ary operation wrapper *)
 Definition nary_op (n : nat) (op_R : list R -> R) (inputs : list R) : R :=
   op_R inputs.
 
+(* Operation invariant under cyclic rotation of arguments *)
 Definition nary_cyclic (n : nat) (op : list R -> R) : Prop :=
   forall (l : list R), length l = n ->
   forall k, (k < n)%nat ->
   op l = op (skipn k l ++ firstn k l).
 
+(* Identity element with n-1 copies recovers value *)
 Definition nary_identity_law (n : nat) (op : list R -> R) (e : R) : Prop :=
   forall a, op (e :: repeat a (n - 1)) = a.
 
+(* Operation expressible as weighted sum *)
 Definition nary_affine (n : nat) (op : list R -> R) : Prop :=
   exists (coeffs : list R),
     length coeffs = n /\
@@ -238,6 +289,7 @@ Definition nary_affine (n : nat) (op : list R -> R) : Prop :=
     forall (inputs : list R), length inputs = n ->
       op inputs = sum_list (map (fun '(c, x) => c * x) (combine coeffs inputs)).
 
+(* Single rotation moves head to tail *)
 Lemma cyclic_rotation_once : forall (A : Type) (l : list A) (n : nat),
   length l = S n ->
   skipn 1 l ++ firstn 1 l = match l with
@@ -251,6 +303,7 @@ Proof.
   - simpl. reflexivity.
 Qed.
 
+(* Affine operation on constant inputs *)
 Lemma affine_on_repeat_all_equal : forall n coeffs op x,
   length coeffs = n ->
   (forall inputs, length inputs = n ->
@@ -263,6 +316,7 @@ Proof.
   - apply repeat_length.
 Qed.
 
+(* Cyclic symmetry forces three coefficients equal *)
 Lemma cyclic_forces_equal_coeffs_base : forall c0 c1 c2,
   (forall a0 a1 a2, c0 * a0 + c1 * a1 + c2 * a2 = c0 * a2 + c1 * a0 + c2 * a1) ->
   c0 = c1 /\ c1 = c2.
@@ -273,6 +327,7 @@ Proof.
   - specialize (Hcyc 0 1 0). lra.
 Qed.
 
+(* Identity law uniquely determines denominator as n-1 *)
 Theorem nary_identity_forces_denominator :
   forall (n : nat) (d : R),
   (n >= 2)%nat ->
@@ -300,6 +355,7 @@ Proof.
     field_simplify; [lra | lra].
 Qed.
 
+(* Lipschitz constant equals n over n-1 *)
 Theorem nary_lipschitz_constant :
   forall (n : nat) (d : R),
   (n >= 2)%nat ->
@@ -312,6 +368,7 @@ Proof.
   reflexivity.
 Qed.
 
+(* N-ary Lipschitz constant exceeds one for n>=3 *)
 Theorem nary_stability_condition :
   forall (n : nat),
   (n >= 3)%nat ->
@@ -331,6 +388,7 @@ Proof.
   - field_simplify; [lra | lra].
 Qed.
 
+(* Strict ordering is irreflexive *)
 Lemma Rgt_irrefl_False : forall r : R, r > r -> False.
 Proof.
   intros r H.
@@ -338,6 +396,7 @@ Proof.
   exact (Rlt_irrefl r H).
 Qed.
 
+(* Affine operation on constant list reduces to scalar multiple *)
 Lemma affine_op_on_repeat : forall (n : nat) (coeffs : list R) (op : list R -> R) (x : R),
   length coeffs = n ->
   (forall inputs, length inputs = n -> op inputs = sum_list (map (fun '(c, y) => c * y) (combine coeffs inputs))) ->
@@ -350,12 +409,14 @@ Proof.
   - apply repeat_length.
 Qed.
 
+(* Operation expressible as sum divided by constant *)
 Definition nary_barycentric (n : nat) (op : list R -> R) : Prop :=
   exists (d : R),
     d > 0 /\
     forall (inputs : list R), length inputs = n ->
       op inputs = sum_list inputs / d.
 
+(* Barycentric operation factors as constant times sum *)
 Lemma nary_barycentric_symmetric_coeffs : forall n op d,
   nary_barycentric n op ->
   d > 0 ->
@@ -370,6 +431,7 @@ Proof.
   unfold Rdiv. ring.
 Qed.
 
+(* Barycentric operation on constant list *)
 Lemma nary_barycentric_on_repeat : forall n op d x,
   d > 0 ->
   (forall inputs, length inputs = n -> op inputs = sum_list inputs / d) ->
@@ -381,6 +443,7 @@ Proof.
   - apply repeat_length.
 Qed.
 
+(* Identity law forces barycentric denominator to be n-1 *)
 Theorem nary_identity_determines_denominator_barycentric :
   forall n op d,
   (n >= 2)%nat ->
@@ -410,6 +473,7 @@ Proof.
   - simpl. rewrite repeat_length. lia.
 Qed.
 
+(* Barycentric operation has Lipschitz constant n/(n-1) *)
 Lemma nary_barycentric_lipschitz : forall n op d x,
   (n >= 2)%nat ->
   d = INR (n - 1) ->
@@ -427,6 +491,7 @@ Proof.
   - apply repeat_length.
 Qed.
 
+(* N-ary operations with all three axioms amplify errors *)
 Theorem nary_impossibility :
   forall (n : nat),
   (n >= 3)%nat ->
@@ -484,6 +549,7 @@ Proof.
       apply Rlt_le. apply Rinv_0_lt_compat. exact Hn1_pos.
 Qed.
 
+(* Ternary case yields Lipschitz constant of 3/2 *)
 Corollary ternary_is_special_case :
   let n := 3%nat in
   INR n / INR (n - 1) = 3 / 2.
@@ -491,6 +557,7 @@ Proof.
   simpl. lra.
 Qed.
 
+(* Quaternary case is also unstable *)
 Corollary quaternary_also_unstable :
   let n := 4%nat in
   INR n / INR (n - 1) = 4 / 3 /\
@@ -500,6 +567,7 @@ Proof.
   split; [lra | lra].
 Qed.
 
+(* Binary case yields constant of 2 *)
 Corollary binary_is_stable_boundary :
   let n := 2%nat in
   INR n / INR (n - 1) = 2 / 1 /\
@@ -509,6 +577,7 @@ Proof.
   split; [lra | lra].
 Qed.
 
+(* Cyclic and identity laws preclude affine ternary operations *)
 Theorem ternary_affine_identity_impossible :
   forall op,
   nary_cyclic 3 op ->
@@ -558,21 +627,26 @@ Qed.
 
 End NaryGeneralization.
 
+(* Spectral analysis of operators *)
 Section OperatorSpectrum.
 
 Context {Omega : Type} `{ValuatedTernaryAlgebra Omega}.
 
+(* Operator mapping x to ternary_op x x x *)
 Definition T (x : Omega) : Omega := ternary_op x x x.
 
+(* Element unchanged by T operator *)
 Definition is_fixed_point (x : Omega) : Prop :=
   T x = x.
 
+(* Identity element is fixed by T *)
 Lemma identity_is_fixed_point : is_fixed_point identity.
 Proof.
   unfold is_fixed_point, T.
   apply identity_law.
 Qed.
 
+(* Fixed point with zero valuation must be identity *)
 Lemma fixed_point_zero_valuation : forall x,
   is_fixed_point x -> valuation x = 0 -> x = identity.
 Proof.
@@ -581,6 +655,7 @@ Proof.
   exact Hval.
 Qed.
 
+(* Mapping to identity preserves fixed point property *)
 Lemma T_identity_gives_fixed_point : forall x,
   T x = identity -> is_fixed_point identity.
 Proof.
@@ -588,6 +663,7 @@ Proof.
   apply identity_is_fixed_point.
 Qed.
 
+(* Fixed points with zero valuation equal identity *)
 Theorem fixed_point_with_zero_valuation_is_identity : forall x,
   is_fixed_point x -> valuation x = 0 -> x = identity.
 Proof.
@@ -596,6 +672,7 @@ Proof.
   exact Hval.
 Qed.
 
+(* Identity is unique zero-valuation fixed point *)
 Theorem identity_unique_zero_valuation_fixed_point : forall x,
   is_fixed_point x -> valuation x = 0 -> x = identity.
 Proof.
@@ -603,6 +680,7 @@ Proof.
   apply fixed_point_with_zero_valuation_is_identity; assumption.
 Qed.
 
+(* Identity law holds in all three argument positions *)
 Lemma identity_laws_all : forall a,
   ternary_op identity a a = a /\
   ternary_op a identity a = a /\
@@ -620,6 +698,7 @@ Proof.
     rewrite Hid2. exact Hid1.
 Qed.
 
+(* Two-step cyclic permutation equals double application *)
 Lemma cyclic_permutation_1 : forall a b c,
   ternary_op a b c = ternary_op b c a.
 Proof.
@@ -629,6 +708,7 @@ Proof.
   reflexivity.
 Qed.
 
+(* Single-step cyclic permutation *)
 Lemma cyclic_permutation_2 : forall a b c,
   ternary_op a b c = ternary_op c a b.
 Proof.
@@ -636,6 +716,7 @@ Proof.
   apply cyclic_symmetry.
 Qed.
 
+(* T operator has Lipschitz constant 3/2 *)
 Lemma T_valuation_bound : forall x,
   valuation (T x) <= (3/2) * valuation x.
 Proof.
@@ -648,8 +729,10 @@ Proof.
   exact Hineq.
 Qed.
 
+(* Lipschitz constant for T operator *)
 Definition lipschitz_bound_T : R := 3/2.
 
+(* T valuation bounded by Lipschitz constant *)
 Theorem T_valuation_lipschitz : forall x,
   valuation (T x) <= lipschitz_bound_T * valuation x.
 Proof.
@@ -659,12 +742,14 @@ Proof.
 Qed.
 
 
+(* Iteration of T operator n times *)
 Fixpoint T_iter (n : nat) (x : Omega) : Omega :=
   match n with
   | O => x
   | S n' => T (T_iter n' x)
   end.
 
+(* Iterated T amplifies valuation exponentially *)
 Lemma T_iter_bound : forall n x,
   valuation (T_iter n x) <= (3/2)^n * valuation x.
 Proof.
@@ -683,10 +768,12 @@ Qed.
 
 End OperatorSpectrum.
 
+(* Properties of derived binary operation *)
 Section DerivedBinaryProperties.
 
 Context {Omega : Type} `{ValuatedTernaryAlgebra Omega}.
 
+(* Binary operation with identity on right *)
 Lemma derived_binary_with_identity_left : forall a,
   a ◊ identity = ternary_op a identity identity.
 Proof.
@@ -695,6 +782,7 @@ Proof.
   reflexivity.
 Qed.
 
+(* Binary operation with identity on left *)
 Lemma derived_binary_with_identity_right : forall a,
   identity ◊ a = ternary_op identity a identity.
 Proof.
@@ -703,6 +791,7 @@ Proof.
   reflexivity.
 Qed.
 
+(* Binary identity preservation condition *)
 Lemma derived_binary_identity_not_preserved : forall a,
   a ◊ identity = a -> ternary_op a identity identity = a.
 Proof.
@@ -711,6 +800,7 @@ Proof.
   exact Heq.
 Qed.
 
+(* Definition of binary operation via ternary *)
 Lemma derived_binary_cyclic_variant : forall a b,
   a ◊ b = ternary_op a b identity.
 Proof.
@@ -719,6 +809,7 @@ Proof.
   reflexivity.
 Qed.
 
+(* Binary operation valuation bounded by average *)
 Lemma derived_binary_valuation_bound : forall a b,
   valuation (a ◊ b) <= (valuation a + valuation b) / 2.
 Proof.
@@ -734,15 +825,19 @@ Qed.
 
 End DerivedBinaryProperties.
 
+(* Quotient by valuation equivalence *)
 Section QuotientStructure.
 
 Context {Omega : Type} `{ValuatedTernaryAlgebra Omega}.
 
+(* Equivalence relation on elements with same valuation *)
 Definition nu_equiv (a b : Omega) : Prop :=
   valuation a = valuation b.
 
+(* Infix notation for valuation equivalence *)
 Notation "a ~ b" := (nu_equiv a b) (at level 70).
 
+(* Valuation equivalence is reflexive *)
 Lemma nu_equiv_reflexive : forall a, a ~ a.
 Proof.
   intro a.
@@ -750,6 +845,7 @@ Proof.
   reflexivity.
 Qed.
 
+(* Valuation equivalence is symmetric *)
 Lemma nu_equiv_symmetric : forall a b, a ~ b -> b ~ a.
 Proof.
   intros a b Hab.
@@ -758,6 +854,7 @@ Proof.
   exact Hab.
 Qed.
 
+(* Valuation equivalence is transitive *)
 Lemma nu_equiv_transitive : forall a b c, a ~ b -> b ~ c -> a ~ c.
 Proof.
   intros a b c Hab Hbc.
@@ -766,11 +863,13 @@ Proof.
   exact Hbc.
 Qed.
 
+(* Ternary operation respects valuation equivalence *)
 Definition ternary_op_coherent : Prop :=
   forall a b c d e f,
     a ~ d -> b ~ e -> c ~ f ->
     ternary_op a b c ~ ternary_op d e f.
 
+(* Weak coherence via barycentric bound *)
 Lemma ternary_op_coherent_weak : forall a b c d e f,
   a ~ d -> b ~ e -> c ~ f ->
   valuation (ternary_op a b c) <=
@@ -783,6 +882,7 @@ Proof.
   exact H1.
 Qed.
 
+(* Coherence equivalent to valuation preservation *)
 Remark ternary_op_coherent_reformulation :
   ternary_op_coherent <->
   (forall a b c d e f,
@@ -797,12 +897,15 @@ Qed.
 
 End QuotientStructure.
 
+(* Constructing quotient algebra from coherent operation *)
 Section QuotientConstruction.
 
 Context {Omega : Type} `{ValuatedTernaryAlgebra Omega}.
 
+(* Quotient type of valuations *)
 Definition quotient_elem := {v : R | exists x : Omega, valuation x = v}.
 
+(* Construct quotient element from real value *)
 Lemma quotient_elem_witness : forall (v : R),
   (exists x : Omega, valuation x = v) -> quotient_elem.
 Proof.
@@ -811,9 +914,11 @@ Proof.
   exact Hex.
 Defined.
 
+(* Extract real value from quotient element *)
 Definition quotient_val (q : quotient_elem) : R :=
   proj1_sig q.
 
+(* Lift element to quotient by its valuation *)
 Definition lift_to_quotient (x : Omega) : quotient_elem.
 Proof.
   exists (valuation x).
@@ -821,6 +926,7 @@ Proof.
   reflexivity.
 Defined.
 
+(* Lifting preserves valuation *)
 Lemma lift_preserves_valuation : forall x,
   quotient_val (lift_to_quotient x) = valuation x.
 Proof.
@@ -830,6 +936,7 @@ Proof.
   reflexivity.
 Qed.
 
+(* Quotient elements equal when values equal *)
 Lemma quotient_elem_eq : forall (q1 q2 : quotient_elem),
   quotient_val q1 = quotient_val q2 -> q1 = q2.
 Proof.
@@ -840,11 +947,14 @@ Proof.
   apply proof_irrelevance.
 Qed.
 
+(* Assume coherence for quotient construction *)
 Context (coherence : ternary_op_coherent).
 
+(* Choose representative element for quotient class *)
 Definition choose_repr : quotient_elem -> Omega :=
   fun q => proj1_sig (constructive_indefinite_description _ (proj2_sig q)).
 
+(* Representative has correct valuation *)
 Lemma choose_repr_correct : forall q,
   valuation (choose_repr q) = quotient_val q.
 Proof.
@@ -856,12 +966,15 @@ Proof.
   exact Hx.
 Qed.
 
+(* Ternary operation on quotient elements *)
 Definition quotient_ternary_op (q1 q2 q3 : quotient_elem) : quotient_elem :=
   lift_to_quotient (ternary_op (choose_repr q1) (choose_repr q2) (choose_repr q3)).
 
+(* Quotient identity element *)
 Definition quotient_identity : quotient_elem :=
   lift_to_quotient identity.
 
+(* Quotient identity has zero value *)
 Lemma quotient_identity_val : quotient_val quotient_identity = 0.
 Proof.
   unfold quotient_identity, quotient_val, lift_to_quotient.
@@ -869,6 +982,7 @@ Proof.
   apply valuation_identity.
 Qed.
 
+(* Quotient operation well-defined on equivalence classes *)
 Lemma quotient_op_well_defined : forall q1 q2 q3 q1' q2' q3',
   quotient_val q1 = quotient_val q1' ->
   quotient_val q2 = quotient_val q2' ->
@@ -886,6 +1000,7 @@ Proof.
   - rewrite choose_repr_correct. rewrite choose_repr_correct. exact Hq3.
 Qed.
 
+(* Quotient operation satisfies cyclic symmetry *)
 Lemma quotient_cyclic_symmetry : forall a b c,
   quotient_ternary_op a b c = quotient_ternary_op c a b.
 Proof.
@@ -895,6 +1010,7 @@ Proof.
   apply cyclic_symmetry.
 Qed.
 
+(* Representative of quotient identity is identity *)
 Lemma choose_repr_quotient_identity_faithful :
   choose_repr quotient_identity = identity.
 Proof.
@@ -905,6 +1021,7 @@ Proof.
   apply valuation_identity.
 Qed.
 
+(* Quotient operation satisfies identity law *)
 Lemma quotient_identity_law : forall a,
   quotient_ternary_op quotient_identity a a = a.
 Proof.
@@ -922,6 +1039,7 @@ Proof.
   reflexivity.
 Qed.
 
+(* Quotient forms ternary algebra instance *)
 Instance QuotientTernaryAlgebra : TernaryAlgebra quotient_elem := {
   ternary_op := quotient_ternary_op;
   identity := quotient_identity;
@@ -929,6 +1047,7 @@ Instance QuotientTernaryAlgebra : TernaryAlgebra quotient_elem := {
   identity_law := quotient_identity_law;
 }.
 
+(* Coherence implies quotient algebra exists *)
 Theorem quotient_inherits_ternary_algebra_when_coherent :
   ternary_op_coherent ->
   exists (Q : Type) (H : TernaryAlgebra Q), True.
@@ -940,14 +1059,19 @@ Qed.
 
 End QuotientConstruction.
 
+(* Convergence properties of iterated operations *)
 Section ConvergenceAnalysis.
 
 Context {Omega : Type} `{ValuatedTernaryAlgebra Omega}.
 
+(* Family of elements indexed by naturals *)
 Context (f : nat -> Omega).
+(* Family is injective *)
 Context (f_injection : forall n m, f n = f m -> n = m).
+(* Valuation decreases as 1/n *)
 Context (f_valuation : forall n, (n > 0)%nat -> valuation (f n) = 1 / INR n).
 
+(* Recursive sequence using ternary operation *)
 Fixpoint sequence (a0 a1 : Omega) (n : nat) : Omega :=
   match n with
   | 0%nat => a0
@@ -955,6 +1079,7 @@ Fixpoint sequence (a0 a1 : Omega) (n : nat) : Omega :=
   | S (S m as n') => ternary_op (sequence a0 a1 n') (sequence a0 a1 m) (f (S (S m)))
   end.
 
+(* Positive naturals have positive real value *)
 Lemma INR_pos : forall n, (n > 0)%nat -> INR n > 0.
 Proof.
   intros n Hn.
@@ -963,6 +1088,7 @@ Proof.
   exact Hn.
 Qed.
 
+(* Reciprocal of n at least 2 bounded by 1/2 *)
 Lemma inv_INR_bound : forall n, (n >= 2)%nat -> 1 / INR n <= 1/2.
 Proof.
   intros n Hn.
@@ -977,6 +1103,7 @@ Proof.
     + lra.
 Qed.
 
+(* Valuation of f bounded by 1/2 for n>=2 *)
 Lemma valuation_f_bound : forall n, (n >= 2)%nat -> valuation (f n) <= 1/2.
 Proof.
   intros n Hn.
@@ -985,6 +1112,7 @@ Proof.
   - lia.
 Qed.
 
+(* Sequence valuation remains bounded *)
 Lemma sequence_valuation_bound : forall a0 a1 n,
   (n >= 2)%nat ->
   valuation (sequence a0 a1 n) <=
@@ -1001,6 +1129,7 @@ Proof.
     apply valuation_barycentric.
 Qed.
 
+(* Sequence valuation grows at most linearly *)
 Theorem sequence_valuation_linear_bound : forall a0 a1 n,
   valuation (sequence a0 a1 n) <=
   Rmax (valuation a0) (valuation a1) + INR n * / 2.
@@ -1037,12 +1166,14 @@ Proof.
         rewrite H_simp1, H_simp2. lra.
 Qed.
 
+(* Reciprocal of positive real is positive *)
 Lemma inv_pos : forall x, x > 0 -> 1 / x > 0.
 Proof.
   intros x Hx.
   apply Rdiv_lt_0_compat; lra.
 Qed.
 
+(* Archimedean property witness as natural *)
 Lemma archimed_nat_witness : forall r, r > 0 ->
   exists N, (N > 0)%nat /\ INR N > r.
 Proof.
@@ -1056,6 +1187,7 @@ Proof.
   rewrite Z2Nat.id by lia. lra.
 Qed.
 
+(* Reciprocal decreases as natural increases *)
 Lemma inv_INR_decreasing : forall n m,
   (n > 0)%nat -> (m > 0)%nat ->
   (n >= m)%nat -> 1 / INR n <= 1 / INR m.
@@ -1071,6 +1203,7 @@ Proof.
     + lra.
 Qed.
 
+(* Large n implies small reciprocal *)
 Lemma inv_INR_lt_bound : forall n r,
   (n > 0)%nat -> INR n > 1 / r -> r > 0 -> 1 / INR n < r.
 Proof.
@@ -1090,6 +1223,7 @@ Proof.
     exact H_prod.
 Qed.
 
+(* Valuation of f becomes arbitrarily small *)
 Lemma f_valuation_implies_limit : forall eps, eps > 0 ->
   exists N, forall n, (n >= N)%nat -> valuation (f n) < eps.
 Proof.
@@ -1107,11 +1241,13 @@ Proof.
   apply inv_INR_lt_bound; assumption.
 Qed.
 
+(* Sequence is Cauchy if valuations converge *)
 Definition is_Cauchy (seq : nat -> Omega) : Prop :=
   forall eps, eps > 0 -> exists N, forall n m,
     (n >= N)%nat -> (m >= N)%nat ->
     Rabs (valuation (seq n) - valuation (seq m)) < eps.
 
+(* Family f converges to identity in valuation *)
 Theorem f_converges_to_identity :
   forall eps, eps > 0 ->
   exists N, forall n, (n >= N)%nat ->
@@ -1127,6 +1263,7 @@ Proof.
   - apply Rle_ge. apply valuation_nonneg.
 Qed.
 
+(* Constant sequences are Cauchy *)
 Theorem constant_sequence_is_Cauchy : forall x : Omega,
   is_Cauchy (fun _ => x).
 Proof.
@@ -1140,6 +1277,7 @@ Proof.
   exact Heps.
 Qed.
 
+(* Eventually constant sequences are Cauchy *)
 Theorem eventually_constant_implies_Cauchy : forall (seq : nat -> Omega) (N : nat) (x : Omega),
   (forall n, (n >= N)%nat -> seq n = x) ->
   is_Cauchy seq.
@@ -1158,13 +1296,17 @@ Qed.
 
 End ConvergenceAnalysis.
 
+(* Convergence when perturbations are all identity *)
 Section ConvergenceAnalysisIdentityCase.
 
 Context {Omega : Type} `{ValuatedTernaryAlgebra Omega}.
 
+(* Family mapping to identity *)
 Context (f : nat -> Omega).
+(* All elements are identity *)
 Context (f_all_identity : forall n, (n > 0)%nat -> f n = identity).
 
+(* Sequence with identity perturbations *)
 Fixpoint sequence_identity (a0 a1 : Omega) (n : nat) : Omega :=
   match n with
   | 0%nat => a0
@@ -1172,6 +1314,7 @@ Fixpoint sequence_identity (a0 a1 : Omega) (n : nat) : Omega :=
   | S (S m as n') => ternary_op (sequence_identity a0 a1 n') (sequence_identity a0 a1 m) (f (S (S m)))
   end.
 
+(* Sequence starting from identity stays at identity *)
 Theorem sequence_from_identity_with_identity_perturbations : forall n,
   sequence_identity identity identity n = identity.
 Proof.
@@ -1193,6 +1336,7 @@ Proof.
     + lia.
 Qed.
 
+(* Identity sequence with identity perturbations is Cauchy *)
 Corollary identity_sequence_with_trivial_f_is_Cauchy :
   is_Cauchy (fun n => sequence_identity identity identity n).
 Proof.
@@ -1202,15 +1346,18 @@ Qed.
 
 End ConvergenceAnalysisIdentityCase.
 
+(* General convergence theorems for sequences *)
 Section GeneralConvergenceTheorems.
 
 Context {Omega : Type} `{ValuatedTernaryAlgebra Omega}.
 
+(* General Cauchy sequence definition *)
 Definition is_Cauchy_general (seq : nat -> Omega) : Prop :=
   forall eps, eps > 0 -> exists N, forall n m,
     (n >= N)%nat -> (m >= N)%nat ->
     Rabs (valuation (seq n) - valuation (seq m)) < eps.
 
+(* Bounded sequences with small gaps are Cauchy *)
 Theorem bounded_convergence_implies_Cauchy:
   forall (seq : nat -> Omega),
   (exists M, forall n, valuation (seq n) <= M) ->
@@ -1226,41 +1373,53 @@ Qed.
 
 End GeneralConvergenceTheorems.
 
+(* Homomorphisms between ternary algebras *)
 Section Homomorphisms.
 
 Context {Omega Omega' : Type}.
 Context `{ValuatedTernaryAlgebra Omega}.
 Context `{ValuatedTernaryAlgebra Omega'}.
 
+(* Map between algebras *)
 Context (phi : Omega -> Omega').
 
+(* Map preserves ternary operation *)
 Definition preserves_ternary_structure : Prop :=
   forall a b c,
     phi (ternary_op a b c) = ternary_op (phi a) (phi b) (phi c).
 
+(* Real function for valuation transformation *)
 Context (g : R -> R).
 
+(* Map transforms valuations via g *)
 Definition preserves_valuation : Prop :=
   forall x, valuation (phi x) = g (valuation x).
 
+(* Function g is strictly increasing *)
 Definition g_strictly_monotonic : Prop :=
   forall x y, x < y -> g x < g y.
 
+(* Function g maps zero to zero *)
 Definition g_zero : Prop := g 0 = 0.
 
+(* Map is homomorphism of valuated algebras *)
 Definition is_homomorphism : Prop :=
   preserves_ternary_structure /\ preserves_valuation.
 
+(* Structure preserving with Lipschitz bound *)
 Definition preserves_structure_Lipschitz (c : R) : Prop :=
   preserves_ternary_structure /\ forall x, valuation (phi x) <= c * valuation x.
 
+(* Function g is positive homogeneous *)
 Definition g_pos_hom : Prop :=
   forall lambda t, 0 <= lambda -> g (lambda * t) = lambda * g t.
 
+(* Function g preserves barycentric inequality *)
 Definition g_subadditive : Prop :=
   forall x y z,
     g ((x + y + z) / 2) <= (g x + g y + g z) / 2.
 
+(* Linear functions are subadditive *)
 Lemma linear_g_satisfies_subadditive : forall c,
   (forall t, g t = c * t) -> g_subadditive.
 Proof.
@@ -1271,6 +1430,7 @@ Proof.
   lra.
 Qed.
 
+(* Positive homogeneous subadditive functions preserve barycentric *)
 Lemma pos_hom_subadditive_preserves_barycentric :
   g_pos_hom -> g_subadditive ->
   forall x y z,
@@ -1280,13 +1440,17 @@ Proof.
   apply Hsub.
 Qed.
 
+(* Power law function with exponent alpha *)
 Definition g_power_law (c alpha : R) : R -> R :=
   fun x => c * Rpower x alpha.
 
+(* Quadratic function as power law *)
 Example g_quadratic (c : R) : R -> R := g_power_law c 2.
 
+(* Square root function as power law *)
 Example g_sqrt (c : R) : R -> R := g_power_law c (1/2).
 
+(* Linear functions map zero to zero *)
 Theorem linear_g_is_g_zero : forall c,
   (forall t, t >= 0 -> g t = c * t) -> g 0 = 0.
 Proof.
@@ -1295,6 +1459,7 @@ Proof.
   lra.
 Qed.
 
+(* Quadratic functions violate subadditivity *)
 Theorem quadratic_violates_subadditive : forall c,
   c > 0 ->
   (forall t, t >= 0 -> g t = c * t * t) ->
@@ -1315,6 +1480,7 @@ Proof.
   lra.
 Qed.
 
+(* Homomorphisms preserve barycentric bounds *)
 Theorem homomorphism_gives_barycentric_bound :
   is_homomorphism ->
   forall a b c,
@@ -1331,6 +1497,7 @@ Proof.
   exact Hineq.
 Qed.
 
+(* Homomorphism with g_zero preserves identity valuation *)
 Lemma g_preserves_identity_valuation :
   is_homomorphism ->
   g_zero ->
@@ -1345,18 +1512,22 @@ Qed.
 
 End Homomorphisms.
 
+(* Associator and non-associativity *)
 Section AssociatorFormalism.
 
 Context {Omega : Type} `{ValuatedTernaryAlgebra Omega}.
 
+(* Operation fails to associate *)
 Definition non_associative : Prop :=
   exists a b c d e,
     ternary_op (ternary_op a b c) d e <>
     ternary_op a (ternary_op b c d) e.
 
+(* Left-nested associator *)
 Definition associator (a b c d e : Omega) : Omega :=
   ternary_op (ternary_op a b c) d e.
 
+(* Associator valuation bounded *)
 Theorem associator_valuation_bound : forall a b c d e,
   valuation (associator a b c d e) <=
   (valuation (ternary_op a b c) + valuation d + valuation e) / 2.
@@ -1366,6 +1537,7 @@ Proof.
   apply valuation_barycentric.
 Qed.
 
+(* Left associator valuation bound *)
 Lemma associator_bound_left : forall a b c d e,
   valuation (ternary_op (ternary_op a b c) d e) <=
   (valuation a + valuation b + valuation c + 2*valuation d + 2*valuation e) / 4.
@@ -1388,6 +1560,7 @@ Proof.
       rewrite H_simp. apply Rle_refl.
 Qed.
 
+(* Right associator valuation bound *)
 Lemma associator_bound_right : forall a b c d e,
   valuation (ternary_op a (ternary_op b c d) e) <=
   (2*valuation a + valuation b + valuation c + valuation d + 2*valuation e) / 4.
@@ -1408,6 +1581,7 @@ Proof.
       rewrite H_simp. apply Rle_refl.
 Qed.
 
+(* Valuation distinguishes non-associative cases *)
 Theorem non_associativity_witnessed_by_valuation : forall a b c d e,
   valuation (ternary_op (ternary_op a b c) d e) <>
   valuation (ternary_op a (ternary_op b c d) e) ->
@@ -1422,8 +1596,11 @@ Qed.
 
 End AssociatorFormalism.
 
+(* Trivial single-element instance *)
+(* Trivial unit type instance *)
 Section TrivialInstance.
 
+(* Unit type forms ternary algebra *)
 Instance TrivialTernaryAlgebra : TernaryAlgebra unit := {
   ternary_op := fun _ _ _ => tt;
   identity := tt;
@@ -1431,6 +1608,7 @@ Instance TrivialTernaryAlgebra : TernaryAlgebra unit := {
   identity_law := fun u => match u with tt => eq_refl end;
 }.
 
+(* Trivial valuation satisfies barycentric bound *)
 Lemma trivial_valuation_barycentric : forall a b c : unit,
   0 <= (0 + 0 + 0) / 2.
 Proof.
@@ -1438,12 +1616,14 @@ Proof.
   lra.
 Qed.
 
+(* Zero valuation implies unit element *)
 Lemma trivial_valuation_faithful `{TernaryAlgebra unit} : forall x : unit,
   (fun _ : unit => 0) x = 0 -> x = tt.
 Proof.
   intros []; reflexivity.
 Qed.
 
+(* Unit type forms valuated ternary algebra *)
 Instance TrivialValuatedTernaryAlgebra : ValuatedTernaryAlgebra unit := {
   valuation := fun _ => 0;
   valuation_nonneg := fun u => match u with tt => Rle_refl 0 end;
@@ -1452,6 +1632,7 @@ Instance TrivialValuatedTernaryAlgebra : ValuatedTernaryAlgebra unit := {
   valuation_faithful := trivial_valuation_faithful;
 }.
 
+(* Trivial instance satisfies all axioms *)
 Lemma trivial_instance_satisfies_all_axioms :
   exists (Omega : Type) (H : TernaryAlgebra Omega) (H0 : ValuatedTernaryAlgebra Omega), True.
 Proof.
@@ -1459,6 +1640,7 @@ Proof.
   exact I.
 Qed.
 
+(* Trivial instance is coherent *)
 Theorem trivial_instance_is_coherent : ternary_op_coherent.
 Proof.
   unfold ternary_op_coherent, nu_equiv.
@@ -1468,6 +1650,7 @@ Proof.
   reflexivity.
 Qed.
 
+(* Trivial instance witnesses coherence *)
 Corollary trivial_satisfies_coherence_axioms :
   exists (Omega : Type) (H : TernaryAlgebra Omega) (H0 : ValuatedTernaryAlgebra Omega),
     ternary_op_coherent.
@@ -1478,17 +1661,23 @@ Qed.
 
 End TrivialInstance.
 
+(* Real numbers as normed instance *)
 Section NormedVectorSpaceInstance.
 
+(* Real numbers as carrier *)
 Definition R_vec := R.
 
+(* Average ternary operation on reals *)
 Definition R_vec_ternary (a b c : R_vec) : R_vec :=
   (a + b + c) / 2.
 
+(* Zero as identity element *)
 Definition R_vec_identity : R_vec := 0.
 
+(* Absolute value as norm *)
 Definition R_vec_norm (x : R_vec) : R := Rabs x.
 
+(* Ternary operation on reals is cyclic *)
 Lemma R_vec_cyclic : forall a b c,
   R_vec_ternary a b c = R_vec_ternary c a b.
 Proof.
@@ -1497,6 +1686,7 @@ Proof.
   f_equal. ring.
 Qed.
 
+(* Real identity law for averaging *)
 Lemma R_vec_identity_law : forall a,
   R_vec_ternary R_vec_identity a a = a.
 Proof.
@@ -1505,6 +1695,7 @@ Proof.
   field_simplify; lra.
 Qed.
 
+(* Real numbers form ternary algebra *)
 Instance RVecTernaryAlgebra : TernaryAlgebra R_vec := {
   ternary_op := R_vec_ternary;
   identity := R_vec_identity;
@@ -1512,6 +1703,7 @@ Instance RVecTernaryAlgebra : TernaryAlgebra R_vec := {
   identity_law := R_vec_identity_law;
 }.
 
+(* Absolute value is nonnegative *)
 Lemma R_vec_norm_nonneg : forall x, 0 <= R_vec_norm x.
 Proof.
   intro x.
@@ -1519,12 +1711,14 @@ Proof.
   apply Rabs_pos.
 Qed.
 
+(* Zero has zero norm *)
 Lemma R_vec_norm_identity : R_vec_norm R_vec_identity = 0.
 Proof.
   unfold R_vec_norm, R_vec_identity.
   apply Rabs_R0.
 Qed.
 
+(* Triangle inequality for averaging *)
 Lemma R_vec_barycentric : forall a b c,
   R_vec_norm (R_vec_ternary a b c) <= (R_vec_norm a + R_vec_norm b + R_vec_norm c) / 2.
 Proof.
@@ -1547,6 +1741,7 @@ Proof.
       * apply Req_le. field.
 Qed.
 
+(* Zero norm implies zero value *)
 Lemma R_vec_faithful : forall x,
   R_vec_norm x = 0 -> x = R_vec_identity.
 Proof.
@@ -1559,6 +1754,7 @@ Proof.
   exact H.
 Qed.
 
+(* Real numbers form valuated ternary algebra *)
 Instance RVecValuatedTernaryAlgebra : ValuatedTernaryAlgebra R_vec := {
   valuation := R_vec_norm;
   valuation_nonneg := R_vec_norm_nonneg;
@@ -1567,10 +1763,12 @@ Instance RVecValuatedTernaryAlgebra : ValuatedTernaryAlgebra R_vec := {
   valuation_faithful := R_vec_faithful;
 }.
 
+(* Uniqueness of affine representation *)
 Section UniquenessOfAffineForm.
 
 (* Stone (1949) MR 0036014; Dudek-Głazek (2008) *)
 
+(* Identity law forces denominator to be 2 *)
 Theorem denominator_two_is_forced :
   forall (d : R),
   d > 0 ->
@@ -1589,6 +1787,7 @@ Proof.
   - subst d. intro a. lra.
 Qed.
 
+(* Constant input amplifies by 3/2 *)
 Theorem lipschitz_constant_is_three_halves :
   forall x : R,
   Rabs ((x + x + x) / 2) = (3/2) * Rabs x.
@@ -1600,6 +1799,7 @@ Proof.
   reflexivity.
 Qed.
 
+(* Identity and stability are incompatible *)
 Theorem fundamental_incompatibility :
   forall (d : R),
   d > 0 ->
@@ -1616,6 +1816,7 @@ Qed.
 
 End UniquenessOfAffineForm.
 
+(* Exact T operator amplification on reals *)
 Lemma R_vec_T_exact : forall x,
   valuation (T x) = (3/2) * valuation x.
 Proof.
@@ -1630,9 +1831,11 @@ Proof.
   reflexivity.
 Qed.
 
+(* T operator achieves Lipschitz bound exactly *)
 Definition T_bound_is_exact : Prop :=
   forall x, x <> identity -> valuation (T x) = lipschitz_bound_T * valuation x.
 
+(* Real instance has exact bound *)
 Theorem R_vec_has_exact_T_bound : T_bound_is_exact.
 Proof.
   unfold T_bound_is_exact, lipschitz_bound_T.
@@ -1640,6 +1843,7 @@ Proof.
   apply R_vec_T_exact.
 Qed.
 
+(* T operator preserves sign of real input *)
 Corollary R_vec_T_preserves_sign : forall x,
   (x >= 0 -> T x >= 0) /\ (x <= 0 -> T x <= 0).
 Proof.
@@ -1648,6 +1852,7 @@ Proof.
   split; intro H; lra.
 Qed.
 
+(* T strictly increases valuation for positive reals *)
 Theorem R_vec_T_strict_growth_positive : forall x,
   x > 0 -> valuation (T x) > valuation x.
 Proof.
@@ -1658,6 +1863,7 @@ Proof.
   lra.
 Qed.
 
+(* Zero is only real fixed point *)
 Theorem R_vec_identity_unique_fixed_point : forall x : R_vec,
   is_fixed_point x -> x = identity.
 Proof.
@@ -1671,6 +1877,7 @@ Proof.
   lra.
 Qed.
 
+(* Iterated T amplifies by power of 3/2 *)
 Lemma R_vec_T_iter_exact : forall n x,
   valuation (T_iter n x : R_vec) = (3/2)^n * valuation x.
 Proof.
@@ -1684,6 +1891,7 @@ Proof.
     simpl. ring.
 Qed.
 
+(* T strictly amplifies nonzero reals *)
 Example R_vec_T_diverges_concrete : forall x : R_vec,
   x <> identity ->
   valuation (T x) > valuation x.
@@ -1699,8 +1907,10 @@ Proof.
   lra.
 Qed.
 
+(* Exponential error growth analysis *)
 Section ErrorAmplification.
 
+(* Concrete bound at 11 iterations *)
 Lemma error_at_iteration_11 : (3/2)^11 < 100.
 Proof.
   assert (Hcalc: (3/2)^11 = 3^11 / 2^11).
@@ -1712,6 +1922,7 @@ Proof.
   lra.
 Qed.
 
+(* Error exceeds 100 at 12 iterations *)
 Lemma error_at_iteration_12 : (3/2)^12 > 100.
 Proof.
   assert (Hcalc: (3/2)^12 = 3^12 / 2^12).
@@ -1723,6 +1934,7 @@ Proof.
   lra.
 Qed.
 
+(* Error crosses tolerance threshold at iteration 12 *)
 Theorem error_exceeds_tolerance_at_12_iterations :
   forall initial_error tolerance,
   initial_error = 1 ->
@@ -1739,6 +1951,7 @@ Proof.
     rewrite H. apply error_at_iteration_12.
 Qed.
 
+(* Critical threshold between iterations 11 and 12 *)
 Corollary critical_iteration_exact : (3/2)^11 < 100 < (3/2)^12.
 Proof.
   split.
@@ -1746,6 +1959,7 @@ Proof.
   - apply error_at_iteration_12.
 Qed.
 
+(* Concrete formula for iterated T on reals *)
 Theorem T_iter_R_vec_concrete_divergence : forall (x : R_vec) (n : nat),
   x <> 0 ->
   valuation (T_iter n x) = (3/2)^n * Rabs x.
@@ -1759,6 +1973,7 @@ Qed.
 
 End ErrorAmplification.
 
+(* Reals provide nontrivial instance *)
 Lemma nontrivial_instance_exists :
   exists (Omega : Type) (H : TernaryAlgebra Omega) (H0 : ValuatedTernaryAlgebra Omega)
          (x y : Omega),
@@ -1775,6 +1990,7 @@ Proof.
   lra.
 Qed.
 
+(* Derived binary operation on reals is arithmetic mean *)
 Lemma R_vec_derived_binary_is_average : forall a b,
   (a ◊ b : R_vec) = (a + b) / 2.
 Proof.
@@ -1784,6 +2000,7 @@ Proof.
   lra.
 Qed.
 
+(* Derived binary on reals is commutative *)
 Lemma R_vec_derived_binary_IS_commutative : forall a b : R_vec,
   a ◊ b = b ◊ a.
 Proof.
@@ -1793,6 +2010,7 @@ Proof.
   lra.
 Qed.
 
+(* Derived binary does not have identity property *)
 Lemma R_vec_derived_binary_not_identity :
   exists a : R_vec, a ◊ identity <> a.
 Proof.
@@ -1803,6 +2021,7 @@ Proof.
   lra.
 Qed.
 
+(* Concrete counterexample to associativity *)
 Example R_vec_associator_concrete :
   let a := 1 in let b := 2 in let c := 3 in let d := 4 in let e := 5 in
   ternary_op (ternary_op a b c) d e <>
@@ -1817,6 +2036,7 @@ Proof.
   lra.
 Qed.
 
+(* Associator defect quantified as quarter of difference *)
 Lemma R_vec_associator_defect : forall a b c d e : R_vec,
   Rabs (ternary_op (ternary_op a b c) d e -
         ternary_op a (ternary_op b c d) e) = Rabs (d - a) / 4.
@@ -1836,16 +2056,19 @@ Qed.
 
 End NormedVectorSpaceInstance.
 
+(* Structural investigation of ternary algebra *)
 Section InvestigatingTheStructure.
 
 Context {Omega : Type} `{ValuatedTernaryAlgebra Omega}.
 
+(* Ternary operation equals sum divided by 2 *)
 Example R_vec_denominator : forall a b c : R,
   R_vec_ternary a b c = (a + b + c) / 2.
 Proof.
   intros. unfold R_vec_ternary. reflexivity.
 Qed.
 
+(* Ternary average differs from arithmetic mean *)
 Example different_from_standard_average :
   R_vec_ternary 1 1 1 <> (1 + 1 + 1) / 3.
 Proof.
@@ -1857,6 +2080,7 @@ Proof.
   lra.
 Qed.
 
+(* Identity law holds with denominator 2 *)
 Example identity_law_with_this_denominator :
   R_vec_ternary 0 5 5 = 5.
 Proof.
@@ -1864,12 +2088,14 @@ Proof.
   lra.
 Qed.
 
+(* Standard three-way average value *)
 Example standard_averaging_comparison :
   (0 + 5 + 5) / 3 = 10/3.
 Proof.
   lra.
 Qed.
 
+(* T operator amplifies by factor 3/2 *)
 Theorem T_effect_on_R_vec : forall x : R,
   x <> 0 ->
   Rabs (R_vec_ternary x x x) = (3/2) * Rabs x.
@@ -1883,6 +2109,7 @@ Proof.
   reflexivity.
 Qed.
 
+(* Amplification factor is 3 divided by denominator *)
 Theorem denominator_amplification_relationship : forall d : R, d > 0 ->
   forall x : R,
   Rabs ((x + x + x) / d) = (3/d) * Rabs x.
@@ -1900,6 +2127,7 @@ Proof.
   ring.
 Qed.
 
+(* Amplification with denominator 2 yields 3/2 *)
 Corollary amplification_with_d_equals_2 :
   let d := 2 in
   3/d = 3/2.
@@ -1907,6 +2135,7 @@ Proof.
   simpl. lra.
 Qed.
 
+(* Amplification with denominator 3 yields 1 *)
 Corollary amplification_with_d_equals_3 :
   let d := 3 in
   3/d = 1.
@@ -1914,6 +2143,7 @@ Proof.
   simpl. lra.
 Qed.
 
+(* Barycentric bound and denominator both equal 2 *)
 Theorem denominators_match_in_R_vec :
   forall a b c : R,
   R_vec_norm (R_vec_ternary a b c) <= (R_vec_norm a + R_vec_norm b + R_vec_norm c) / 2
@@ -1926,6 +2156,7 @@ Proof.
   - unfold R_vec_ternary. reflexivity.
 Qed.
 
+(* Identity law holds if and only if denominator is 2 *)
 Example identity_law_requires_specific_denominator :
   forall a d : R, d > 0 -> a <> 0 ->
   (0 + a + a) / d = a <-> d = 2.
@@ -1945,6 +2176,7 @@ Proof.
   - subst d. lra.
 Qed.
 
+(* Stability threshold occurs at denominator 3 *)
 Theorem denominator_and_stability_threshold :
   forall d : R, d > 0 ->
   (3/d < 1 <-> d > 3) /\
@@ -1994,6 +2226,7 @@ Proof.
       lra.
 Qed.
 
+(* Standard consensus violates identity law except at zero *)
 Example standard_consensus_vs_identity_law :
   forall a : R,
   (0 + a + a) / 3 = a <-> a = 0.
@@ -2004,21 +2237,27 @@ Qed.
 
 End InvestigatingTheStructure.
 
+(* Impossibility of stable ternary consensus *)
 Section StableTernaryImpossibilityTheorem.
 
 Context {Omega : Type} `{ValuatedTernaryAlgebra Omega}.
 
+(* T operator non-increasing in valuation *)
 Definition is_stable : Prop :=
   forall x, valuation (T x) <= valuation x.
 
+(* T operator strictly decreasing on non-identity elements *)
 Definition is_contractive : Prop :=
   forall x, x <> identity -> valuation (T x) < valuation x.
 
+(* T operator increases valuation for some element *)
 Definition is_expansive : Prop :=
   exists x, x <> identity /\ valuation (T x) > valuation x.
 
+(* Stability threshold constant *)
 Definition stability_threshold : R := 1.
 
+(* Identity law forces denominator to equal 2 *)
 Lemma identity_law_determines_denominator :
   forall (ternary_denominator : R),
   ternary_denominator > 0 ->
@@ -2040,6 +2279,7 @@ Proof.
   - subst d. intro a. lra.
 Qed.
 
+(* Lipschitz constant 3/2 exceeds stability bound *)
 Lemma lipschitz_3_2_violates_stability :
   (3/2) > stability_threshold.
 Proof.
@@ -2047,6 +2287,7 @@ Proof.
   lra.
 Qed.
 
+(* Consensus and identity denominators are incompatible *)
 Corollary consensus_identity_incompatibility :
   forall (consensus_denominator identity_denominator : R),
   identity_denominator > 0 ->
@@ -2061,6 +2302,7 @@ Proof.
   lra.
 Qed.
 
+(* Stability requires denominator at least 3 *)
 Corollary stable_requires_denominator_at_least_3 :
   forall (d : R),
   d > 0 ->
@@ -2085,6 +2327,7 @@ Proof.
     exact Hgoal.
 Qed.
 
+(* Iterations amplify by exponential factor *)
 Corollary iteration_exponential_amplification :
   forall (n : nat) (x : R),
   x <> 0 ->
@@ -2099,6 +2342,7 @@ Proof.
     lra.
 Qed.
 
+(* Byzantine fault amplifies error beyond 100x in 12 iterations *)
 Corollary byzantine_exploitation_via_identity_law :
   forall (error_initial : R) (iterations : nat),
   error_initial > 0 ->
@@ -2120,17 +2364,23 @@ Qed.
 
 End StableTernaryImpossibilityTheorem.
 
+(* Real numbers with capped norm *)
 Section CappedNormInstance.
 
+(* Type alias for reals with capped norm *)
 Definition R_capped := R.
 
+(* Ternary operation on capped reals *)
 Definition R_capped_ternary (a b c : R_capped) : R_capped :=
   (a + b + c) / 2.
 
+(* Identity element for capped reals *)
 Definition R_capped_identity : R_capped := 0.
 
+(* Norm capped at maximum value of 1 *)
 Definition R_capped_norm (x : R_capped) : R := Rmin (Rabs x) 1.
 
+(* Capped ternary operation is cyclically symmetric *)
 Lemma R_capped_cyclic : forall a b c,
   R_capped_ternary a b c = R_capped_ternary c a b.
 Proof.
@@ -2139,6 +2389,7 @@ Proof.
   f_equal. ring.
 Qed.
 
+(* Capped identity law holds *)
 Lemma R_capped_identity_law : forall a,
   R_capped_ternary R_capped_identity a a = a.
 Proof.
@@ -2147,6 +2398,7 @@ Proof.
   field_simplify; lra.
 Qed.
 
+(* Capped reals form ternary algebra *)
 Instance RCappedTernaryAlgebra : TernaryAlgebra R_capped := {
   ternary_op := R_capped_ternary;
   identity := R_capped_identity;
@@ -2154,6 +2406,7 @@ Instance RCappedTernaryAlgebra : TernaryAlgebra R_capped := {
   identity_law := R_capped_identity_law;
 }.
 
+(* Capped norm is nonnegative *)
 Lemma R_capped_norm_nonneg : forall x, 0 <= R_capped_norm x.
 Proof.
   intro x.
@@ -2161,6 +2414,7 @@ Proof.
   apply Rmin_glb; [apply Rabs_pos | lra].
 Qed.
 
+(* Identity has zero capped norm *)
 Lemma R_capped_norm_identity : R_capped_norm R_capped_identity = 0.
 Proof.
   unfold R_capped_norm, R_capped_identity.
@@ -2168,6 +2422,7 @@ Proof.
   apply Rmin_left. lra.
 Qed.
 
+(* Cap violates amplification bound at x=2 *)
 Theorem R_capped_pathological_strict_inequality_example :
   let x := 2 in
   Rmin (Rabs (R_capped_ternary x x x)) 1 < (3/2) * Rmin (Rabs x) 1.
@@ -2192,24 +2447,29 @@ Qed.
 
 End CappedNormInstance.
 
+(* Product of two ternary algebras *)
 Section ProductConstruction.
 
 Context {Omega1 Omega2 : Type}.
 Context `{ValuatedTernaryAlgebra Omega1}.
 Context `{ValuatedTernaryAlgebra Omega2}.
 
+(* Ternary operation on product type applies componentwise *)
 Definition product_ternary (p1 p2 p3 : Omega1 * Omega2) : Omega1 * Omega2 :=
   let '(a1, a2) := p1 in
   let '(b1, b2) := p2 in
   let '(c1, c2) := p3 in
   (ternary_op a1 b1 c1, ternary_op a2 b2 c2).
 
+(* Product identity is pair of identities *)
 Definition product_identity : Omega1 * Omega2 := (identity, identity).
 
+(* Product valuation is maximum of components *)
 Definition product_valuation (p : Omega1 * Omega2) : R :=
   let '(x1, x2) := p in
   Rmax (valuation x1) (valuation x2).
 
+(* Product ternary operation satisfies cyclic symmetry *)
 Lemma product_cyclic : forall p1 p2 p3,
   product_ternary p1 p2 p3 = product_ternary p3 p1 p2.
 Proof.
@@ -2220,6 +2480,7 @@ Proof.
   reflexivity.
 Qed.
 
+(* Product identity law holds componentwise *)
 Lemma product_identity_law : forall p,
   product_ternary product_identity p p = p.
 Proof.
@@ -2230,6 +2491,7 @@ Proof.
   reflexivity.
 Qed.
 
+(* Product forms ternary algebra *)
 Instance ProductTernaryAlgebra : TernaryAlgebra (Omega1 * Omega2) := {
   ternary_op := product_ternary;
   identity := product_identity;
@@ -2237,6 +2499,7 @@ Instance ProductTernaryAlgebra : TernaryAlgebra (Omega1 * Omega2) := {
   identity_law := product_identity_law;
 }.
 
+(* Product valuation is nonnegative *)
 Lemma product_valuation_nonneg : forall p, 0 <= product_valuation p.
 Proof.
   intros [x1 x2].
@@ -2246,6 +2509,7 @@ Proof.
   - apply Rmax_l.
 Qed.
 
+(* Product identity has zero valuation *)
 Lemma product_valuation_identity : product_valuation product_identity = 0.
 Proof.
   unfold product_valuation, product_identity.
@@ -2636,6 +2900,7 @@ Proof.
   lra.
 Qed.
 
+(* Standard weight α=1 yields expansive behavior *)
 Corollary standard_case_is_expansive :
   lipschitz_constant 1 = 3/2 /\
   lipschitz_constant 1 > 1 /\
@@ -2741,6 +3006,7 @@ Proof.
   lra.
 Qed.
 
+(* Zero deviation equivalent to complete agreement *)
 Lemma deviation_zero_iff_consensus : forall x1 x2 x3,
   total_deviation x1 x2 x3 = 0 <-> x1 = x2 /\ x2 = x3.
 Proof.
@@ -2769,19 +3035,25 @@ Qed.
 
 End DistributedLineConsensus.
 
+(* Verified sensor fusion algorithms *)
 Section SensorFusionVerified.
 
+(* Real-valued sensor measurement *)
 Definition sensor_reading := R.
 
+(* Average of three sensor readings *)
 Definition sensor_average_3 (s1 s2 s3 : sensor_reading) : sensor_reading :=
   (s1 + s2 + s3) / 3.
 
 End SensorFusionVerified.
 
+(* Byzantine fault-tolerant consensus algorithms *)
 Section ByzantineResilientConsensus.
 
+(* Real-valued validator input *)
 Definition validator_value := R.
 
+(* Median of three values *)
 Definition median3 (x y z : validator_value) : validator_value :=
   if Rle_dec x y then
     if Rle_dec y z then y
@@ -2790,17 +3062,20 @@ Definition median3 (x y z : validator_value) : validator_value :=
     if Rle_dec x z then x
     else if Rle_dec y z then z else y.
 
+(* Median of identical values is that value *)
 Lemma median3_idempotent : forall x, median3 x x x = x.
 Proof.
   intro. unfold median3. repeat (destruct Rle_dec; try lra).
 Qed.
 
+(* Median invariant under cyclic permutation *)
 Lemma median3_permutation_123 : forall x y z,
   median3 x y z = median3 y z x.
 Proof.
   intros. unfold median3. repeat (destruct Rle_dec; try lra).
 Qed.
 
+(* Median bounds Byzantine input between honest values *)
 Theorem byzantine_tolerance_1_of_3 : forall honest1 honest2 byzantine,
   Rabs (honest1 - honest2) <= 1 ->
   let result := median3 honest1 honest2 byzantine in
@@ -2814,6 +3089,7 @@ Proof.
     repeat (destruct Rle_dec; try lra).
 Qed.
 
+(* Concrete blockchain attack scenario neutralized by median *)
 Example blockchain_consensus_attack_mitigated :
   let honest_vals := (100.3, 100.5) in
   let attacker := 999.9 in
@@ -2824,6 +3100,7 @@ Proof.
   simpl. unfold median3. repeat (destruct Rle_dec; try lra).
 Qed.
 
+(* Iterative Byzantine consensus with two honest parties *)
 Fixpoint byzantine_iterate_single (n : nat) (h1 h2 : R) (byz : nat -> R) : R * R :=
   match n with
   | O => (h1, h2)
@@ -2833,6 +3110,7 @@ Fixpoint byzantine_iterate_single (n : nat) (h1 h2 : R) (byz : nat -> R) : R * R
             (consensus1, consensus2)
   end.
 
+(* Median between ordered inputs or equals third *)
 Lemma median3_bounded : forall x y z,
   x <= y ->
   x <= median3 x y z <= y \/ median3 x y z = z.
@@ -2842,6 +3120,7 @@ Proof.
   repeat (destruct Rle_dec; try lra); auto.
 Qed.
 
+(* Median always equals one of three inputs *)
 Lemma median3_in_range_or_extreme : forall x y z,
   median3 x y z = x \/ median3 x y z = y \/ median3 x y z = z.
 Proof.
@@ -2850,6 +3129,7 @@ Proof.
   repeat (destruct Rle_dec; auto).
 Qed.
 
+(* Median preserves lower bound on all inputs *)
 Lemma median3_respects_lower_bound : forall x y z L,
   L <= x -> L <= y -> L <= z -> L <= median3 x y z.
 Proof.
@@ -2857,6 +3137,7 @@ Proof.
   pose proof (median3_in_range_or_extreme x y z) as [Hm|[Hm|Hm]]; rewrite Hm; assumption.
 Qed.
 
+(* Median preserves upper bound on all inputs *)
 Lemma median3_respects_upper_bound : forall x y z U,
   x <= U -> y <= U -> z <= U -> median3 x y z <= U.
 Proof.
@@ -2864,6 +3145,7 @@ Proof.
   pose proof (median3_in_range_or_extreme x y z) as [Hm|[Hm|Hm]]; rewrite Hm; assumption.
 Qed.
 
+(* Single consensus round respects lower bound *)
 Lemma byzantine_single_round_lower_bound : forall h1 h2 byz,
   h1 <= h1 -> h1 <= h2 -> h1 <= byz ->
   h1 <= median3 h1 h2 byz.
@@ -2872,6 +3154,7 @@ Proof.
   apply median3_respects_lower_bound; assumption.
 Qed.
 
+(* Single consensus round respects upper bound *)
 Lemma byzantine_single_round_upper_bound : forall h1 h2 byz,
   h2 <= h2 -> h1 <= h2 -> byz <= h2 ->
   median3 h2 h1 byz <= h2.
@@ -2880,6 +3163,7 @@ Proof.
   apply median3_respects_upper_bound; [exact Hh2 | lra | exact Hbyz].
 Qed.
 
+(* Base case preserves initial values *)
 Lemma byzantine_base_case : forall h1 h2,
   let '(h1', h2') := byzantine_iterate_single 0 h1 h2 (fun _ => 0) in
   h1' = h1 /\ h2' = h2.
@@ -2889,6 +3173,7 @@ Proof.
   split; reflexivity.
 Qed.
 
+(* Iteration step preserves bounds *)
 Lemma byzantine_bounded_iteration_step : forall h1 h2 h1' h2' byz,
   h1 <= h1' ->
   h1' <= h2 ->
@@ -2910,6 +3195,7 @@ Proof.
     + exact Hbyz_up.
 Qed.
 
+(* Byzantine iterations maintain values within initial bounds *)
 Theorem byzantine_consensus_bounded_range : forall h1 h2 byz n,
   h1 <= h2 ->
   (forall k, (k < n)%nat -> h1 <= byz k <= h2) ->
@@ -2935,6 +3221,7 @@ Proof.
     + apply median3_respects_upper_bound; lra.
 Qed.
 
+(* Honest values always remain in initial range *)
 Corollary byzantine_honest_always_in_initial_range : forall h1 h2 byz n,
   h1 <= h2 ->
   (forall k, (k < n)%nat -> h1 <= byz k <= h2) ->
@@ -2950,6 +3237,7 @@ Proof.
   split; split; assumption.
 Qed.
 
+(* Median filters attacker between honest bounds *)
 Theorem byzantine_resilience_median_filter : forall honest1 honest2 attacker,
   honest1 <= honest2 ->
   honest1 <= median3 honest1 honest2 attacker <= honest2 \/ median3 honest1 honest2 attacker = attacker.
@@ -2961,6 +3249,7 @@ Proof.
   - right. exact Hm.
 Qed.
 
+(* Byzantine consensus maintains outer bounds *)
 Corollary byzantine_consensus_stays_in_bounds : forall n h1 h2 byz,
   h1 <= h2 ->
   (forall k, (k < n)%nat -> h1 <= byz k <= h2) ->
@@ -2976,15 +3265,19 @@ Qed.
 
 End ByzantineResilientConsensus.
 
+(* Byzantine fault tolerance threshold theorems *)
 Section ByzantineThresholdTheorem.
 
 Import VectorNotations.
 
+(* Vector of n real-valued agent states *)
 Definition agent_vector (n : nat) := Vector.t R n.
 
+(* Extract agent value by finite index *)
 Definition get_agent {n : nat} (v : agent_vector n) (i : Fin.t n) : R :=
   Vector.nth v i.
 
+(* Vector eta expansion via identity map *)
 Lemma agent_vector_eta : forall n (v : agent_vector n),
   v = Vector.map (fun x => x) v.
 Proof.
@@ -2994,12 +3287,15 @@ Proof.
   - simpl. f_equal. exact IHv'.
 Qed.
 
+(* Agent is in honest set *)
 Definition is_honest (i : nat) (honest_set : list nat) : Prop :=
   List.In i honest_set.
 
+(* Agent not in honest set is Byzantine *)
 Definition is_byzantine (i : nat) (honest_set : list nat) : Prop :=
   ~ List.In i honest_set.
 
+(* Every agent is either honest or Byzantine *)
 Lemma honest_or_byzantine : forall i honest_set,
   is_honest i honest_set \/ is_byzantine i honest_set.
 Proof.
@@ -3008,6 +3304,7 @@ Proof.
   apply classic.
 Qed.
 
+(* Maximum element in list with fallback *)
 Fixpoint list_max (l : list R) (default : R) : R :=
   match l with
   | List.nil => default
@@ -3015,6 +3312,7 @@ Fixpoint list_max (l : list R) (default : R) : R :=
   | List.cons x xs => Rmax x (list_max xs default)
   end.
 
+(* Minimum element in list with fallback *)
 Fixpoint list_min (l : list R) (default : R) : R :=
   match l with
   | List.nil => default
@@ -3022,6 +3320,7 @@ Fixpoint list_min (l : list R) (default : R) : R :=
   | List.cons x xs => Rmin x (list_min xs default)
   end.
 
+(* List element bounded by maximum *)
 Lemma list_max_in_bounds : forall l x default,
   List.In x l -> x <= list_max l default.
 Proof.
@@ -3039,6 +3338,7 @@ Proof.
         -- apply Rmax_r.
 Qed.
 
+(* Minimum bounds list element *)
 Lemma list_min_in_bounds : forall l x default,
   List.In x l -> list_min l default <= x.
 Proof.
@@ -3058,9 +3358,11 @@ Proof.
         -- exact Hmin_sub.
 Qed.
 
+(* Count true values in boolean list *)
 Definition count_true (l : list bool) : nat :=
   List.fold_left (fun (acc : nat) (b : bool) => if b then S acc else acc) l 0%nat.
 
+(* Folding successor commutes *)
 Lemma fold_left_count_S : forall l n,
   List.fold_left (fun (acc : nat) (b : bool) => if b then S acc else acc) l (S n) =
   S (List.fold_left (fun (acc : nat) (b : bool) => if b then S acc else acc) l n).
@@ -3074,6 +3376,7 @@ Proof.
     + apply IHl'.
 Qed.
 
+(* Count of true values bounded by list length *)
 Lemma count_true_bound : forall l,
   (count_true l <= List.length l)%nat.
 Proof.
@@ -3086,12 +3389,15 @@ Proof.
     + lia.
 Qed.
 
+(* Honest agents exceed two-thirds of total *)
 Definition honest_majority (n f : nat) : Prop :=
   (3 * f < n)%nat.
 
+(* Byzantine agents exceed one-third threshold *)
 Definition byzantine_attack_possible (n f : nat) : Prop :=
   (3 * f >= n)%nat.
 
+(* System either has honest majority or vulnerable *)
 Lemma majority_threshold_dichotomy : forall n f,
   honest_majority n f \/ byzantine_attack_possible n f.
 Proof.
@@ -3100,6 +3406,7 @@ Proof.
   lia.
 Qed.
 
+(* Honest majority implies double honest count exceeds total *)
 Lemma honest_count_from_byzantine : forall n f,
   (f <= n)%nat ->
   honest_majority n f ->
@@ -3110,24 +3417,28 @@ Proof.
   lia.
 Qed.
 
+(* Four nodes tolerate one Byzantine fault *)
 Example byzantine_threshold_4_nodes :
   honest_majority 4 1 /\ ~ honest_majority 4 2.
 Proof.
   unfold honest_majority. split; lia.
 Qed.
 
+(* Seven nodes tolerate two Byzantine faults *)
 Example byzantine_threshold_7_nodes :
   honest_majority 7 2 /\ ~ honest_majority 7 3.
 Proof.
   unfold honest_majority. split; lia.
 Qed.
 
+(* Ten nodes tolerate three Byzantine faults *)
 Example byzantine_threshold_10_nodes :
   honest_majority 10 3 /\ ~ honest_majority 10 4.
 Proof.
   unfold honest_majority. split; lia.
 Qed.
 
+(* One-third is strictly less than half *)
 Lemma one_third_is_minority : forall n,
   (n >= 3)%nat ->
   (3 * (n / 3) < n + 1)%nat.
@@ -3140,8 +3451,10 @@ Proof.
   lia.
 Qed.
 
+(* Arithmetic mean of three reals *)
 Definition average_R (x y z : R) : R := (x + y + z) / 3.
 
+(* Average bounded by minimum and maximum *)
 Lemma average_bounded : forall x y z,
   x <= y -> y <= z ->
   x <= average_R x y z <= z.
@@ -3157,6 +3470,7 @@ Proof.
     lra.
 Qed.
 
+(* Average deviation from median bounded by sum of deviations *)
 Lemma average_contracts_to_median : forall x y z,
   Rabs (average_R x y z - y) <= (Rabs (z - y) + Rabs (x - y)) / 3.
 Proof.
@@ -3685,6 +3999,7 @@ Proof.
   exact H1.
 Qed.
 
+(* Second cyclic rotation identity *)
 Lemma cyclic_unfold_second :
   forall x y z : A, T y z x = T z x y.
 Proof.
@@ -3694,6 +4009,7 @@ Proof.
   exact H2.
 Qed.
 
+(* Complete cyclic permutation of three arguments *)
 Theorem cyclic_full_rotation :
   forall x y z : A, T x y z = T z x y.
 Proof.
@@ -3702,6 +4018,7 @@ Proof.
   apply cyclic_unfold_second.
 Qed.
 
+(* Identity law preserved under rotation to yxx form *)
 Lemma identity_rotation_yxx :
   forall x y : A,
   T x x y = y ->
@@ -3714,6 +4031,7 @@ Proof.
   exact H.
 Qed.
 
+(* Identity law preserved under rotation to xyx form *)
 Lemma identity_rotation_xyx :
   forall x y : A,
   T x x y = y ->
@@ -3726,6 +4044,7 @@ Proof.
   exact H.
 Qed.
 
+(* Cyclic symmetry reduces identity conditions to single constraint *)
 Theorem cyclic_symmetry_collapses_identity_constraints :
   forall x y : A,
   (T x x y = y /\ T y x x = y /\ T x y x = y) <->
@@ -3741,6 +4060,7 @@ Proof.
     + apply (identity_rotation_xyx x y H).
 Qed.
 
+(* Identity on two equal inputs implies self-identity *)
 Theorem identity_determines_two_inputs_equal :
   forall x y : A,
   T x x y = y ->
@@ -3751,6 +4071,7 @@ Proof.
   exact T_identity.
 Qed.
 
+(* Cyclic symmetry eliminates redundant property variations *)
 Theorem cyclic_symmetry_reduces_degrees_of_freedom :
   forall x y z : A,
   (T x y z = T y z x /\ T y z x = T z x y) ->
@@ -3765,18 +4086,24 @@ Qed.
 
 End GeometricCharacterization.
 
+(* Barycentric coordinate representation *)
 Section BarycentricRepresentation.
 
+(* Real-valued ternary operation *)
 Variable R_op : R -> R -> R -> R.
 
+(* Operation satisfies both cyclic rotations *)
 Hypothesis R_cyclic : forall x y z : R,
   R_op x y z = R_op y z x /\ R_op y z x = R_op z x y.
 
+(* Operation satisfies identity on triple input *)
 Hypothesis R_identity : forall x : R, R_op x x x = x.
 
+(* Three coefficients summing to one *)
 Definition is_barycentric (a b c : R) : Prop :=
   (a + b + c = 1)%R.
 
+(* Barycentric condition is sum equals one *)
 Theorem barycentric_sum_constraint :
   forall a b c : R,
   is_barycentric a b c <-> (a + b + c = 1)%R.
@@ -3786,6 +4113,7 @@ Proof.
   split; intro; assumption.
 Qed.
 
+(* Equal weights under barycentric constraint yield one-third *)
 Theorem cyclic_symmetry_forces_equal_barycentric_weights :
   forall a b c : R,
   is_barycentric a b c ->
@@ -3805,6 +4133,7 @@ Proof.
   lra.
 Qed.
 
+(* Identity constraint is tautological *)
 Lemma identity_constraint_reduces_to_single_equation :
   forall x y : R,
   R_op x x y = y ->
@@ -3814,6 +4143,7 @@ Proof.
   exact H.
 Qed.
 
+(* One-third and one-half are distinct *)
 Theorem geometric_algebraic_incompatibility :
   forall a b c : R,
   is_barycentric a b c ->
@@ -3827,6 +4157,7 @@ Proof.
   lra.
 Qed.
 
+(* Cyclic invariance forces all weights to be one-third *)
 Theorem cyclic_symmetry_forces_equal_weights_from_barycentric :
   forall a b c : R,
   is_barycentric a b c ->
@@ -3858,8 +4189,10 @@ Qed.
 
 End BarycentricRepresentation.
 
+(* Central incompatibility between axioms *)
 Section FundamentalIncompatibilityTheorem.
 
+(* Geometric cyclic constraint forces uniform one-third weights *)
 Theorem geometric_requirement_forces_one_third :
   forall a b c : R,
   is_barycentric a b c ->
@@ -3878,6 +4211,7 @@ Proof.
     + unfold is_barycentric in Hbary. subst b c. lra.
 Qed.
 
+(* Identity law forces denominator to be two *)
 Theorem algebraic_requirement_forces_one_half :
   forall d : R,
   d > 0 ->
@@ -3895,6 +4229,7 @@ Proof.
   lra.
 Qed.
 
+(* One-third weights yield geometric denominator of three *)
 Theorem geometric_denominator_from_weights :
   forall a b c : R,
   a = 1/3 -> b = 1/3 -> c = 1/3 ->
@@ -3906,6 +4241,7 @@ Proof.
   split; [lra | intro x; lra].
 Qed.
 
+(* Algebraic denominator equals two not three *)
 Theorem algebraic_denominator_from_identity :
   forall d : R,
   d > 0 ->
@@ -3919,6 +4255,7 @@ Proof.
   split; lra.
 Qed.
 
+(* Denominator of two yields Lipschitz constant exceeding one *)
 Theorem forced_choice_causes_instability :
   forall d_chosen : R,
   d_chosen = 2 ->
@@ -3929,6 +4266,7 @@ Proof.
   lra.
 Qed.
 
+(* Geometric and algebraic operations have incompatible denominators *)
 Theorem geometric_vs_algebraic_incompatibility :
   forall (op_geom op_alg : R -> R -> R -> R),
   (forall x y z : R, op_geom x y z = op_geom z x y) ->
@@ -3966,6 +4304,7 @@ Proof.
     reflexivity.
 Qed.
 
+(* Algebraic identity law necessarily causes error amplification *)
 Corollary causal_chain_algebra_forces_instability :
   forall (op_must_use : R -> R -> R -> R),
   (forall a : R, op_must_use 0 a a = a) ->
@@ -3987,6 +4326,7 @@ Proof.
   lra.
 Qed.
 
+(* Cyclic and identity axioms force incompatible coefficients *)
 Theorem cyclic_identity_barycentric_coefficient_incompatibility :
   forall (T : R -> R -> R -> R),
   (forall x y z, T x y z = T z x y) ->
@@ -4014,6 +4354,7 @@ Proof.
   - lra.
 Qed.
 
+(* Identity law forces coefficient of zero argument to be zero *)
 Lemma identity_law_forces_first_coefficient_zero :
   forall a b c : R,
   a + b + c = 1 ->
@@ -4025,6 +4366,7 @@ Proof.
   lra.
 Qed.
 
+(* Remaining coefficients sum to one after first is zero *)
 Lemma identity_law_forces_second_third_sum_one :
   forall a b c : R,
   a = 0 ->
@@ -4038,6 +4380,7 @@ Proof.
   lra.
 Qed.
 
+(* Symmetry forces second and third coefficients equal *)
 Lemma symmetry_forces_second_third_equal :
   forall a b c : R,
   a = 0 ->
@@ -4050,6 +4393,7 @@ Proof.
   lra.
 Qed.
 
+(* Two equal coefficients summing to one are each one-half *)
 Lemma equal_coefficients_summing_to_one_are_half :
   forall b c : R,
   b = c ->
@@ -4060,6 +4404,7 @@ Proof.
   split; lra.
 Qed.
 
+(* Half-half coefficients yield arithmetic mean *)
 Lemma barycentric_form_with_half_half :
   forall b c y z : R,
   b = 1/2 ->
@@ -4072,6 +4417,7 @@ Proof.
   ring.
 Qed.
 
+(* Identity and symmetry uniquely determine coefficients *)
 Theorem identity_and_symmetry_determine_partial_form :
   forall (T : R -> R -> R -> R),
   (forall x y, T 0 x y = T 0 y x) ->
@@ -4109,8 +4455,10 @@ Qed.
 
 End FundamentalIncompatibilityTheorem.
 
+(* Convergence of n-ary Lipschitz constants *)
 Section FilteredColimitConvergence.
 
+(* Lipschitz constant minus one equals reciprocal *)
 Lemma nary_lipschitz_simplification :
   forall n : nat,
   (n >= 2)%nat ->
@@ -4130,6 +4478,7 @@ Proof.
   exact Hcalc.
 Qed.
 
+(* Reciprocal of positive value is positive *)
 Lemma reciprocal_positive_bound :
   forall n : nat,
   (n >= 2)%nat ->
@@ -4145,6 +4494,7 @@ Proof.
   - apply Rinv_0_lt_compat. exact Hn1_pos.
 Qed.
 
+(* Absolute value of positive reciprocal is itself *)
 Lemma reciprocal_abs_equals_value :
   forall n : nat,
   (n >= 2)%nat ->
@@ -4158,6 +4508,7 @@ Proof.
   exact Hn.
 Qed.
 
+(* Reciprocal decreases as denominator increases *)
 Lemma reciprocal_decreases :
   forall n m : nat,
   (n >= 2)%nat ->
@@ -4177,6 +4528,7 @@ Proof.
   - apply Rinv_le_contravar; lra.
 Qed.
 
+(* N-ary Lipschitz constants approach one as n increases *)
 Theorem nary_lipschitz_converges_to_one :
   forall n : nat,
   (n >= 3)%nat ->
@@ -4193,6 +4545,7 @@ Proof.
     + intros m Hm. apply reciprocal_decreases; lia.
 Qed.
 
+(* Higher-arity operations have smaller Lipschitz constants *)
 Corollary nary_tower_approaches_stability :
   forall n : nat,
   (n >= 3)%nat ->
@@ -4218,6 +4571,7 @@ Proof.
     lra.
 Qed.
 
+(* No stable ternary operation satisfies all axioms *)
 Theorem no_stable_ternary_with_identity :
   ~ exists (T : R -> R -> R -> R),
     (forall x y z, T x y z = T z x y) /\
@@ -4259,8 +4613,10 @@ Qed.
 
 End FilteredColimitConvergence.
 
+(* Universal 3/2 lower bound for Lipschitz constant *)
 Section UniversalLowerBound.
 
+(* Identity law forces first coefficient zero and others sum to one *)
 Lemma identity_forces_denominator_two :
   forall (T : R -> R -> R -> R),
   (forall x, T 0 x x = x) ->
@@ -4282,6 +4638,7 @@ Proof.
     + exact Haff.
 Qed.
 
+(* Cyclic symmetry forces all coefficients equal *)
 Lemma cyclic_forces_equal_coeffs :
   forall (T : R -> R -> R -> R) a b c,
   (forall x y z, T x y z = T z x y) ->
@@ -4649,6 +5006,7 @@ Proof.
     rewrite Hlhs in H010. rewrite Hrhs in H010. exact H010.
 Qed.
 
+(* Identity law forces first coefficient to be zero in fields *)
 Lemma affine_identity_forces_first_coeff_zero {F : Type} `{Field F} :
   forall (T : F -> F -> F -> F) (a b c : F),
   (forall x, T 0%F x x = x) ->
@@ -4676,6 +5034,7 @@ Proof.
   - exact Hcalc.
 Qed.
 
+(* Cyclic and identity axioms incompatible over arbitrary fields *)
 Theorem cyclic_identity_incompatible_over_any_field :
   forall (F : Type) {field_F : Field F},
   ~ exists (T : F -> F -> F -> F),
@@ -4704,37 +5063,60 @@ Proof.
   exact Hbc.
 Qed.
 
+(* Commutative ring algebraic structure *)
 Class CommutativeRing (R : Type) := {
+  (* Additive identity *)
   Rzero : R;
+  (* Multiplicative identity *)
   Rone : R;
+  (* Addition operation *)
   Radd : R -> R -> R;
+  (* Multiplication operation *)
   Rmul : R -> R -> R;
+  (* Additive inverse *)
   Rneg : R -> R;
 
+  (* Addition is commutative *)
   Radd_comm : forall x y, Radd x y = Radd y x;
+  (* Addition is associative *)
   Radd_assoc : forall x y z, Radd (Radd x y) z = Radd x (Radd y z);
+  (* Zero is left identity for addition *)
   Radd_0_l : forall x, Radd Rzero x = x;
+  (* Additive inverse property *)
   Radd_neg : forall x, Radd x (Rneg x) = Rzero;
 
+  (* Multiplication is commutative *)
   Rmul_comm : forall x y, Rmul x y = Rmul y x;
+  (* Multiplication is associative *)
   Rmul_assoc : forall x y z, Rmul (Rmul x y) z = Rmul x (Rmul y z);
+  (* One is left identity for multiplication *)
   Rmul_1_l : forall x, Rmul Rone x = x;
 
+  (* Multiplication distributes over addition *)
   Rmul_add_distr_l : forall x y z, Rmul x (Radd y z) = Radd (Rmul x y) (Rmul x z);
 
+  (* One and zero are distinct *)
   R_one_neq_zero : Rone <> Rzero
 }.
 
+(* Scope for ring notation *)
 Declare Scope ring_scope.
 
+(* Zero notation for rings *)
 Notation "0" := Rzero : ring_scope.
+(* One notation for rings *)
 Notation "1" := Rone : ring_scope.
+(* Addition notation for rings *)
 Notation "x + y" := (Radd x y) : ring_scope.
+(* Multiplication notation for rings *)
 Notation "x * y" := (Rmul x y) : ring_scope.
+(* Negation notation for rings *)
 Notation "- x" := (Rneg x) : ring_scope.
 
+(* Delimiter for ring scope *)
 Delimit Scope ring_scope with R.
 
+(* Zero is right identity for addition *)
 Lemma ring_add_0_r {R : Type} `{CommutativeRing R} : forall x, (x + 0 = x)%R.
 Proof.
   intro x.
@@ -4742,6 +5124,7 @@ Proof.
   apply Radd_0_l.
 Qed.
 
+(* Left cancellation for ring addition *)
 Lemma ring_add_cancel_l {R : Type} `{CommutativeRing R} : forall x y z, (x + y = x + z)%R -> y = z.
 Proof.
   intros x y z Heq.
@@ -4755,6 +5138,7 @@ Proof.
   exact Hcancel.
 Qed.
 
+(* Multiplication by zero yields zero *)
 Lemma ring_mul_0_r {R : Type} `{CommutativeRing R} : forall x, (x * 0 = 0)%R.
 Proof.
   intro x.
@@ -4768,6 +5152,7 @@ Proof.
   exact Heq2.
 Qed.
 
+(* One is right identity for multiplication *)
 Lemma ring_mul_1_r {R : Type} `{CommutativeRing R} : forall x, (x * 1 = x)%R.
 Proof.
   intro x.
@@ -4775,6 +5160,7 @@ Proof.
   apply Rmul_1_l.
 Qed.
 
+(* Cyclic affine operation forces equal coefficients in rings *)
 Lemma ring_affine_cyclic_forces_equal_coeffs {R : Type} `{CommutativeRing R} :
   forall (T : R -> R -> R -> R) (a b c : R),
   (forall x y z, T x y z = T z x y) ->
@@ -4799,6 +5185,7 @@ Proof.
     rewrite Hlhs in H010. rewrite Hrhs in H010. exact H010.
 Qed.
 
+(* Identity law forces first coefficient to be zero in rings *)
 Lemma ring_affine_identity_forces_first_coeff_zero {R : Type} `{CommutativeRing R} :
   forall (T : R -> R -> R -> R) (a b c : R),
   (forall x, T 0%R x x = x) ->
@@ -4826,6 +5213,7 @@ Proof.
   - exact Hcalc.
 Qed.
 
+(* Cyclic and identity axioms incompatible over arbitrary rings *)
 Theorem cyclic_identity_incompatible_over_any_ring :
   forall (R : Type) {ring_R : CommutativeRing R},
   ~ exists (T : R -> R -> R -> R),
@@ -4856,11 +5244,14 @@ Qed.
 
 End AlgebraicGeneralization.
 
+(* Tightness of Lipschitz bound *)
 Section TightnessOfBound.
 
+(* Lipschitz constant as function of arity *)
 Definition lipschitz_constant_for_n (n : nat) : R :=
   INR n / INR (n - 1).
 
+(* Lipschitz constant exceeds one for arity at least two *)
 Lemma lipschitz_constant_is_greater_than_one :
   forall n : nat,
   (n >= 2)%nat ->
@@ -4888,6 +5279,7 @@ Proof.
       exact Hn_gt.
 Qed.
 
+(* Bound 1/(n-1) is tight for n-ary operations *)
 Theorem one_over_n_minus_one_is_tight :
   forall n : nat,
   (n >= 3)%nat ->
@@ -4902,9 +5294,11 @@ Proof.
   lia.
 Qed.
 
+(* N-ary operation with denominator two *)
 Definition nary_denominator_two (n : nat) (inputs : list R) : R :=
   sum_list inputs / 2.
 
+(* Denominator-two operation is cyclic *)
 Lemma nary_denominator_two_cyclic : forall n : nat,
   (n >= 2)%nat ->
   nary_cyclic n (nary_denominator_two n).
@@ -5404,6 +5798,7 @@ Proof.
   ring.
 Qed.
 
+(* Field simplification for inverse *)
 Lemma field_simplify_with_inverse : forall n epsilon : R,
   epsilon <> 0 ->
   (n * epsilon - epsilon) * / epsilon = n - 1.
@@ -5413,6 +5808,7 @@ Proof.
   exact Heps_neq.
 Qed.
 
+(* Division by epsilon equals multiplication by inverse *)
 Lemma one_div_epsilon_simplify : forall epsilon : R,
   1 / epsilon = 1 * / epsilon.
 Proof.
@@ -5421,6 +5817,7 @@ Proof.
   ring.
 Qed.
 
+(* Reciprocal bound for large n *)
 Lemma reciprocal_large_n_bound : forall n epsilon : R,
   epsilon > 0 ->
   n - 1 > 1 / epsilon ->
@@ -5438,6 +5835,7 @@ Proof.
     exact Hn1.
 Qed.
 
+(* INR of n-1 is positive for n at least 2 *)
 Lemma INR_n_minus_1_positive : forall n : nat,
   (n >= 2)%nat -> INR (n - 1) > 0.
 Proof.
@@ -5446,6 +5844,7 @@ Proof.
   lia.
 Qed.
 
+(* Archimedes ceiling bound *)
 Lemma archimed_ceiling_bound : forall x : R,
   x > 0 ->
   INR (S (Z.to_nat (up x))) >= x.
@@ -5478,6 +5877,7 @@ Proof.
   lra.
 Qed.
 
+(* Reciprocal converges to zero for large n *)
 Lemma reciprocal_convergence_to_zero : forall epsilon : R, epsilon > 0 ->
   exists N : nat, forall n : nat, (n >= N)%nat -> (n >= 2)%nat ->
     1 / INR (n - 1) < epsilon.
@@ -5555,6 +5955,7 @@ Proof.
     apply Rmult_le_pos; lra.
 Qed.
 
+(* Square of nonzero is strictly positive *)
 Lemma sqr_pos : forall x : R, x <> 0 -> 0 < x * x.
 Proof.
   intros x Hneq.
@@ -5566,6 +5967,7 @@ Proof.
   - apply Rmult_lt_0_compat; exact Hgt.
 Qed.
 
+(* Division by square root identity *)
 Lemma div_sqr_sqrt : forall a b : R,
   a > 0 -> b > 0 ->
   a / (sqrt b) = sqrt (a * a / b).
@@ -5593,6 +5995,7 @@ Proof.
   - lra.
 Qed.
 
+(* Cosine half-angle identity *)
 Lemma one_minus_cos_sin_half : forall x : R,
   1 - cos x = 2 * sin (x / 2) * sin (x / 2).
 Proof.
@@ -5606,6 +6009,7 @@ Proof.
   lra.
 Qed.
 
+(* Cosine minus one negation identity *)
 Lemma cos_minus_one_neg : forall x : R,
   cos x - 1 = - (1 - cos x).
 Proof.
@@ -5613,6 +6017,7 @@ Proof.
   lra.
 Qed.
 
+(* Cosine minus one expressed via sine squared *)
 Lemma cos_minus_one_as_sin_squared : forall x : R,
   cos x - 1 = - 2 * sin (x / 2) * sin (x / 2).
 Proof.
@@ -5622,6 +6027,7 @@ Proof.
   lra.
 Qed.
 
+(* Sine double angle formula *)
 Lemma sin_double_angle : forall x : R,
   sin (2 * x) = 2 * sin x * cos x.
 Proof.
@@ -5630,6 +6036,7 @@ Proof.
   reflexivity.
 Qed.
 
+(* Complex modulus squared equals sum of squared components *)
 Lemma Cmod_squared : forall z : Complex,
   Cmod z * Cmod z = re z * re z + im z * im z.
 Proof.
@@ -5642,6 +6049,7 @@ Proof.
   reflexivity.
 Qed.
 
+(* Distance from zeta to one expressed via sine *)
 Lemma zeta_minus_one_squared : forall n : nat,
   (n >= 2)%nat ->
   Cmod (Csub (zeta n) (mkComplex 1 0)) * Cmod (Csub (zeta n) (mkComplex 1 0)) =
@@ -5669,6 +6077,7 @@ Proof.
   nra.
 Qed.
 
+(* Complex modulus is nonnegative *)
 Lemma Cmod_nonneg : forall z : Complex, 0 <= Cmod z.
 Proof.
   intro z.
@@ -5676,6 +6085,7 @@ Proof.
   apply sqrt_pos.
 Qed.
 
+(* Sine bounded between -1 and 1 on [0,PI] *)
 Lemma sin_bounded_0_to_pi : forall x : R,
   0 <= x <= PI -> -1 <= sin x <= 1.
 Proof.
@@ -5684,6 +6094,7 @@ Proof.
   lra.
 Qed.
 
+(* Cosine less than one for positive angles in (0,PI) *)
 Lemma cos_lt_1_for_pos : forall t : R,
   0 < t < PI -> cos t < 1.
 Proof.
@@ -5730,28 +6141,33 @@ Proof.
   - lra.
 Qed.
 
+(* Sine of zero equals zero *)
 Lemma sin_0_eq : sin 0 = 0.
 Proof.
   apply sin_0.
 Qed.
 
+(* Cosine of zero equals one *)
 Lemma cos_0_eq : cos 0 = 1.
 Proof.
   apply cos_0.
 Qed.
 
+(* Derivative of sine is cosine *)
 Lemma derivable_sin : forall x : R, derivable_pt_lim sin x (cos x).
 Proof.
   intro x.
   apply derivable_pt_lim_sin.
 Qed.
 
+(* Inequality equivalent to subtraction nonnegativity *)
 Lemma Rle_minus : forall a b : R, a <= b <-> 0 <= b - a.
 Proof.
   intros a b.
   split; intro H; lra.
 Qed.
 
+(* Zeta distance from one equals instability measure *)
 Theorem zeta_minus_one_equals_instability_excess :
   forall n : nat, (n >= 3)%nat ->
   Cmod (Csub (zeta n) (mkComplex 1 0)) =
@@ -5807,6 +6223,7 @@ Proof.
 Qed.
 
 
+(* Character distance expressed trigonometrically *)
 Theorem character_distance_trigonometric :
   forall n : nat, (n >= 3)%nat ->
   Cmod (Csub (zeta n) (mkComplex 1 0)) =
