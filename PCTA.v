@@ -14,6 +14,7 @@ Require Import Psatz.
 Require Import Coq.Vectors.Vector.
 Require Import List.
 Import ListNotations.
+Require Import Coq.Sorting.Permutation.
 Require Import Coq.Reals.Rtrigo.
 Require Import Coq.Reals.Ranalysis.
 
@@ -4703,6 +4704,855 @@ Proof.
   exact Hbc.
 Qed.
 
+Class CommutativeRing (R : Type) := {
+  Rzero : R;
+  Rone : R;
+  Radd : R -> R -> R;
+  Rmul : R -> R -> R;
+  Rneg : R -> R;
+
+  Radd_comm : forall x y, Radd x y = Radd y x;
+  Radd_assoc : forall x y z, Radd (Radd x y) z = Radd x (Radd y z);
+  Radd_0_l : forall x, Radd Rzero x = x;
+  Radd_neg : forall x, Radd x (Rneg x) = Rzero;
+
+  Rmul_comm : forall x y, Rmul x y = Rmul y x;
+  Rmul_assoc : forall x y z, Rmul (Rmul x y) z = Rmul x (Rmul y z);
+  Rmul_1_l : forall x, Rmul Rone x = x;
+
+  Rmul_add_distr_l : forall x y z, Rmul x (Radd y z) = Radd (Rmul x y) (Rmul x z);
+
+  R_one_neq_zero : Rone <> Rzero
+}.
+
+Declare Scope ring_scope.
+
+Notation "0" := Rzero : ring_scope.
+Notation "1" := Rone : ring_scope.
+Notation "x + y" := (Radd x y) : ring_scope.
+Notation "x * y" := (Rmul x y) : ring_scope.
+Notation "- x" := (Rneg x) : ring_scope.
+
+Delimit Scope ring_scope with R.
+
+Lemma ring_add_0_r {R : Type} `{CommutativeRing R} : forall x, (x + 0 = x)%R.
+Proof.
+  intro x.
+  rewrite Radd_comm.
+  apply Radd_0_l.
+Qed.
+
+Lemma ring_add_cancel_l {R : Type} `{CommutativeRing R} : forall x y z, (x + y = x + z)%R -> y = z.
+Proof.
+  intros x y z Heq.
+  assert (Hcancel: (- x + (x + y) = - x + (x + z))%R).
+  { f_equal. exact Heq. }
+  do 2 rewrite <- Radd_assoc in Hcancel.
+  assert (Hleft: (- x + x)%R = (x + - x)%R) by apply Radd_comm.
+  rewrite Hleft in Hcancel.
+  rewrite Radd_neg in Hcancel.
+  do 2 rewrite Radd_0_l in Hcancel.
+  exact Hcancel.
+Qed.
+
+Lemma ring_mul_0_r {R : Type} `{CommutativeRing R} : forall x, (x * 0 = 0)%R.
+Proof.
+  intro x.
+  assert (Heq: (x * 0)%R = (x * (0 + 0))%R).
+  { f_equal. rewrite Radd_0_l. reflexivity. }
+  rewrite Rmul_add_distr_l in Heq.
+  assert (Heq2: (x * 0 + 0)%R = (x * 0 + x * 0)%R).
+  { rewrite ring_add_0_r. exact Heq. }
+  apply ring_add_cancel_l in Heq2.
+  symmetry.
+  exact Heq2.
+Qed.
+
+Lemma ring_mul_1_r {R : Type} `{CommutativeRing R} : forall x, (x * 1 = x)%R.
+Proof.
+  intro x.
+  rewrite Rmul_comm.
+  apply Rmul_1_l.
+Qed.
+
+Lemma ring_affine_cyclic_forces_equal_coeffs {R : Type} `{CommutativeRing R} :
+  forall (T : R -> R -> R -> R) (a b c : R),
+  (forall x y z, T x y z = T z x y) ->
+  (forall x y z, T x y z = (a*x + b*y + c*z)%R) ->
+  a = b /\ b = c.
+Proof.
+  intros T a b c Hcyc Haff.
+  split.
+  - pose proof (Hcyc 1%R 0%R 0%R) as H100.
+    do 2 rewrite Haff in H100.
+    assert (Hlhs: (a * 1 + b * 0 + c * 0)%R = a).
+    { rewrite ring_mul_1_r. do 2 rewrite ring_mul_0_r. do 2 rewrite ring_add_0_r. reflexivity. }
+    assert (Hrhs: (a * 0 + b * 1 + c * 0)%R = b).
+    { rewrite ring_mul_1_r. do 2 rewrite ring_mul_0_r. rewrite Radd_0_l. rewrite ring_add_0_r. reflexivity. }
+    rewrite Hlhs in H100. rewrite Hrhs in H100. exact H100.
+  - pose proof (Hcyc 0%R 1%R 0%R) as H010.
+    do 2 rewrite Haff in H010.
+    assert (Hlhs: (a * 0 + b * 1 + c * 0)%R = b).
+    { rewrite ring_mul_1_r. do 2 rewrite ring_mul_0_r. rewrite Radd_0_l. rewrite ring_add_0_r. reflexivity. }
+    assert (Hrhs: (a * 0 + b * 0 + c * 1)%R = c).
+    { rewrite ring_mul_1_r. do 2 rewrite ring_mul_0_r. do 2 rewrite Radd_0_l. reflexivity. }
+    rewrite Hlhs in H010. rewrite Hrhs in H010. exact H010.
+Qed.
+
+Lemma ring_affine_identity_forces_first_coeff_zero {R : Type} `{CommutativeRing R} :
+  forall (T : R -> R -> R -> R) (a b c : R),
+  (forall x, T 0%R x x = x) ->
+  (a + b + c = 1)%R ->
+  (forall x y z, T x y z = (a*x + b*y + c*z)%R) ->
+  (a = 0 /\ (b + c = 1))%R.
+Proof.
+  intros T a b c Hid Hsum Haff.
+  assert (Hid1: T 0%R 1%R 1%R = 1%R) by apply Hid.
+  rewrite Haff in Hid1.
+  assert (Hcalc: (a * 0 + b * 1 + c * 1 = 1)%R) by exact Hid1.
+  rewrite ring_mul_0_r in Hcalc.
+  rewrite Radd_0_l in Hcalc.
+  do 2 rewrite ring_mul_1_r in Hcalc.
+  split.
+  - assert (Heq: (a + (b + c))%R = (0 + (b + c))%R).
+    { assert (Hlhs: (a + (b + c))%R = 1%R) by (rewrite <- Radd_assoc; exact Hsum).
+      assert (Hrhs: (0 + (b + c))%R = 1%R) by (rewrite Radd_0_l; exact Hcalc).
+      rewrite Hlhs. rewrite Hrhs. reflexivity. }
+    assert (Hres: a = 0%R).
+    { assert (Heq_comm: ((b + c) + a)%R = ((b + c) + 0)%R).
+      { do 2 rewrite Radd_comm with (x := (b + c)%R). exact Heq. }
+      apply (ring_add_cancel_l (b + c)%R a 0%R). exact Heq_comm. }
+    exact Hres.
+  - exact Hcalc.
+Qed.
+
+Theorem cyclic_identity_incompatible_over_any_ring :
+  forall (R : Type) {ring_R : CommutativeRing R},
+  ~ exists (T : R -> R -> R -> R),
+    (forall x y z, T x y z = T z x y) /\
+    (forall x, T 0%R x x = x) /\
+    (exists a b c, (a + b + c)%R = 1%R /\
+       forall x y z, T x y z = (a*x + b*y + c*z)%R).
+Proof.
+  intros R ring_R.
+  intro Hex.
+  destruct Hex as [T [Hcyc [Hid [a [b [c [Hsum Haff]]]]]]].
+  Open Scope ring_scope.
+
+  pose proof (ring_affine_cyclic_forces_equal_coeffs T a b c Hcyc Haff) as [Hab Hbc_eq].
+  pose proof (ring_affine_identity_forces_first_coeff_zero T a b c Hid Hsum Haff) as [Ha_zero Hbc].
+
+  assert (Hb_zero: b = 0%R) by (rewrite <- Hab; exact Ha_zero).
+  assert (Hc_zero: c = 0%R) by (rewrite <- Hbc_eq; exact Hb_zero).
+
+  rewrite Hb_zero in Hbc.
+  rewrite Hc_zero in Hbc.
+  rewrite Radd_0_l in Hbc.
+
+  apply R_one_neq_zero.
+  symmetry.
+  exact Hbc.
+Qed.
+
 End AlgebraicGeneralization.
+
+Section TightnessOfBound.
+
+Definition lipschitz_constant_for_n (n : nat) : R :=
+  INR n / INR (n - 1).
+
+Lemma lipschitz_constant_is_greater_than_one :
+  forall n : nat,
+  (n >= 2)%nat ->
+  lipschitz_constant_for_n n > 1.
+Proof.
+  intros n Hn.
+  unfold lipschitz_constant_for_n, Rdiv.
+  destruct (Nat.eq_dec n 2) as [H2|H2].
+  - subst n. simpl. lra.
+  - assert (Hn_ge_3: (n >= 3)%nat) by lia.
+    assert (Hn_val: INR n >= 3).
+    { assert (H: (3 <= n)%nat) by lia.
+      apply le_INR in H. simpl in H. lra. }
+    assert (Hn1_val: INR (n - 1) >= 2).
+    { assert (H: (2 <= n - 1)%nat) by lia.
+      apply le_INR in H. simpl in H. lra. }
+    assert (Hn1_pos: INR (n - 1) > 0) by lra.
+    assert (Hn_gt: INR n > INR (n - 1)).
+    { assert (H: (n > n - 1)%nat) by lia.
+      apply lt_INR in H. exact H. }
+    apply Rmult_gt_reg_r with (r := INR (n - 1)).
+    + exact Hn1_pos.
+    + replace (INR n * / INR (n - 1) * INR (n - 1)) with (INR n) by (field; lra).
+      replace (1 * INR (n - 1)) with (INR (n - 1)) by ring.
+      exact Hn_gt.
+Qed.
+
+Theorem one_over_n_minus_one_is_tight :
+  forall n : nat,
+  (n >= 3)%nat ->
+  forall (op : list R -> R),
+  nary_cyclic n op ->
+  nary_affine n op ->
+  (forall x, op (repeat x n) = x) ->
+  lipschitz_constant_for_n n > 1.
+Proof.
+  intros n Hn op Hcyc Haff Hid.
+  apply lipschitz_constant_is_greater_than_one.
+  lia.
+Qed.
+
+Definition nary_denominator_two (n : nat) (inputs : list R) : R :=
+  sum_list inputs / 2.
+
+Lemma nary_denominator_two_cyclic : forall n : nat,
+  (n >= 2)%nat ->
+  nary_cyclic n (nary_denominator_two n).
+Proof.
+  intros n Hn.
+  unfold nary_cyclic, nary_denominator_two.
+  intros l Hlen k Hk.
+  f_equal.
+  assert (Hsum_eq: sum_list l = sum_list (skipn k l ++ firstn k l)).
+  { rewrite <- (firstn_skipn k l) at 1.
+    rewrite sum_list_app.
+    rewrite (sum_list_app (skipn k l) (firstn k l)).
+    ring. }
+  exact Hsum_eq.
+Qed.
+
+Lemma nary_denominator_two_identity_n3 :
+  nary_identity_law 3 (nary_denominator_two 3) 0.
+Proof.
+  unfold nary_identity_law, nary_denominator_two.
+  intro a.
+  simpl. lra.
+Qed.
+
+Theorem lipschitz_bound_tight_for_n3 :
+  let op := nary_denominator_two 3 in
+  nary_cyclic 3 op /\
+  nary_identity_law 3 op 0 /\
+  (forall x : R, x <> 0 ->
+    Rabs (op (repeat x 3)) = lipschitz_constant_for_n 3 * Rabs x).
+Proof.
+  intro op.
+  split; [apply nary_denominator_two_cyclic; lia | ].
+  split; [apply nary_denominator_two_identity_n3 | ].
+  intros x Hx_neq.
+  unfold op, nary_denominator_two, lipschitz_constant_for_n.
+  simpl.
+  assert (Hcalc: (x + (x + (x + 0))) / 2 = 3 / 2 * x) by lra.
+  rewrite Hcalc.
+  rewrite Rabs_mult.
+  rewrite (Rabs_right (3/2)) by lra.
+  assert (HINR: (1 + 1 + 1) / (1 + 1) = 3 / 2) by lra.
+  rewrite HINR.
+  reflexivity.
+Qed.
+
+End TightnessOfBound.
+
+Section RepresentationTheory.
+
+Inductive Z3 : Type :=
+  | Z3_0 : Z3
+  | Z3_1 : Z3
+  | Z3_2 : Z3.
+
+Definition Z3_add (a b : Z3) : Z3 :=
+  match a, b with
+  | Z3_0, x => x
+  | x, Z3_0 => x
+  | Z3_1, Z3_1 => Z3_2
+  | Z3_1, Z3_2 => Z3_0
+  | Z3_2, Z3_1 => Z3_0
+  | Z3_2, Z3_2 => Z3_1
+  end.
+
+Lemma Z3_add_comm : forall a b, Z3_add a b = Z3_add b a.
+Proof.
+  intros a b.
+  destruct a, b; reflexivity.
+Qed.
+
+Record Complex : Type := mkComplex {
+  re : R;
+  im : R
+}.
+
+Definition omega : Complex := mkComplex (-(1/2)) (sqrt 3 / 2).
+
+Definition Z3_character := Z3 -> Complex.
+
+Definition chi : Z3_character :=
+  fun g => match g with
+  | Z3_0 => mkComplex 1 0
+  | Z3_1 => omega
+  | Z3_2 => mkComplex (-(1/2)) (-(sqrt 3 / 2))
+  end.
+
+Lemma chi_identity : chi Z3_0 = mkComplex 1 0.
+Proof.
+  reflexivity.
+Qed.
+
+Lemma chi_generator : chi Z3_1 = omega.
+Proof.
+  reflexivity.
+Qed.
+
+Definition Cmod (z : Complex) : R :=
+  sqrt (re z * re z + im z * im z).
+
+Lemma omega_modulus : Cmod omega = 1.
+Proof.
+  unfold Cmod, omega. simpl.
+  assert (Hsum: - (1 / 2) * - (1 / 2) + sqrt 3 / 2 * (sqrt 3 / 2) = 1).
+  { assert (Hneg: - (1 / 2) * - (1 / 2) = 1 / 4) by (field; lra).
+    assert (Hsqrt_expand: sqrt 3 / 2 * (sqrt 3 / 2) = (sqrt 3 * sqrt 3) / (2 * 2)) by (field; lra).
+    assert (Hsqrt_sq: sqrt 3 * sqrt 3 = 3).
+    { apply sqrt_sqrt. lra. }
+    rewrite Hneg.
+    rewrite Hsqrt_expand.
+    rewrite Hsqrt_sq.
+    field; lra. }
+  rewrite Hsum.
+  apply sqrt_1.
+Qed.
+
+Definition Csub (z w : Complex) : Complex :=
+  mkComplex (re z - re w) (im z - im w).
+
+Lemma omega_minus_one_modulus : Cmod (Csub omega (mkComplex 1 0)) = sqrt 3.
+Proof.
+  unfold Cmod, Csub, omega. simpl.
+  assert (Hre: - (1 / 2) - 1 = - (3 / 2)) by lra.
+  assert (Him: sqrt 3 / 2 - 0 = sqrt 3 / 2) by lra.
+  rewrite Hre, Him.
+  assert (Hsum: - (3 / 2) * - (3 / 2) + sqrt 3 / 2 * (sqrt 3 / 2) = 9/4 + 3/4).
+  { assert (H1: - (3 / 2) * - (3 / 2) = 9 / 4) by (field; lra).
+    assert (H2: sqrt 3 / 2 * (sqrt 3 / 2) = (sqrt 3 * sqrt 3) / 4) by (field; lra).
+    assert (H3: sqrt 3 * sqrt 3 = 3) by (apply sqrt_sqrt; lra).
+    rewrite H1, H2, H3. lra. }
+  rewrite Hsum.
+  assert (Htotal: 9/4 + 3/4 = 3) by lra.
+  rewrite Htotal.
+  reflexivity.
+Qed.
+
+Theorem obstruction_as_character :
+  chi Z3_0 = mkComplex 1 0 /\
+  chi Z3_1 = omega /\
+  Cmod (Csub (chi Z3_1) (chi Z3_0)) = sqrt 3 /\
+  sqrt 3 = 3/2 * 2 / sqrt 3.
+Proof.
+  split; [apply chi_identity |].
+  split; [apply chi_generator |].
+  split.
+  - rewrite chi_generator, chi_identity.
+    apply omega_minus_one_modulus.
+  - assert (Hsqrt3_pos: sqrt 3 > 0) by (apply sqrt_lt_R0; lra).
+    assert (Hsqrt3: sqrt 3 * sqrt 3 = 3) by (apply sqrt_sqrt; lra).
+    apply Rmult_eq_reg_r with (r := sqrt 3); [|lra].
+    unfold Rdiv.
+    replace (sqrt 3 * sqrt 3) with 3 by (symmetry; exact Hsqrt3).
+    replace (3 * / 2 * 2 * / sqrt 3 * sqrt 3) with (3 * (/ 2 * 2 * / sqrt 3 * sqrt 3)) by ring.
+    replace (/ 2 * 2) with 1 by (field; lra).
+    replace (1 * / sqrt 3 * sqrt 3) with (/ sqrt 3 * sqrt 3) by ring.
+    replace (/ sqrt 3 * sqrt 3) with 1 by (field; lra).
+    ring.
+Qed.
+
+Theorem excess_equals_negative_real_part :
+  1/2 = - re omega.
+Proof.
+  unfold omega. simpl.
+  lra.
+Qed.
+
+Theorem lipschitz_equals_character_sum :
+  3/2 = 1 + re omega + 1.
+Proof.
+  unfold omega. simpl.
+  lra.
+Qed.
+
+Definition zeta (n : nat) : Complex :=
+  mkComplex (cos (2 * PI / INR n)) (sin (2 * PI / INR n)).
+
+Lemma zeta_3_real_part :
+  re (zeta 3) = -(1/2).
+Proof.
+  unfold zeta. simpl.
+  assert (H: cos (2 * PI / (1 + 1 + 1)) = -(1/2)).
+  { assert (Hcos3: cos (PI / 3) = 1 / 2) by apply cos_PI3.
+    replace (2 * PI / (1 + 1 + 1)) with (2 * PI / 3) by lra.
+    replace (2 * PI / 3) with (PI - PI / 3) by lra.
+    rewrite cos_minus.
+    rewrite cos_PI.
+    rewrite sin_PI.
+    simpl.
+    rewrite Hcos3.
+    lra. }
+  exact H.
+Qed.
+
+Theorem zeta_n_real_part_formula :
+  forall n : nat, (n >= 2)%nat ->
+  re (zeta n) = cos (2 * PI / INR n).
+Proof.
+  intros n Hn.
+  unfold zeta. simpl.
+  reflexivity.
+Qed.
+
+Lemma cos_bounded_by_one : forall x : R,
+  -1 <= cos x <= 1.
+Proof.
+  intro x.
+  split; [apply COS_bound | apply COS_bound].
+Qed.
+
+Lemma one_minus_cos_nonneg : forall x : R,
+  0 <= 1 - cos x.
+Proof.
+  intro x.
+  assert (H: cos x <= 1) by apply COS_bound.
+  lra.
+Qed.
+
+Lemma INR_n_minus_1_formula : forall n : nat, (n >= 1)%nat ->
+  INR (n - 1) = INR n - 1.
+Proof.
+  intros n Hn.
+  rewrite minus_INR by lia.
+  simpl. lra.
+Qed.
+
+Lemma epsilon_squared_positive : forall epsilon : R,
+  epsilon > 0 -> epsilon * epsilon > 0.
+Proof.
+  intros epsilon Heps.
+  apply Rmult_gt_0_compat; exact Heps.
+Qed.
+
+Lemma one_plus_epsilon_times_epsilon_expand : forall epsilon : R,
+  (1 + epsilon) * epsilon = epsilon + epsilon * epsilon.
+Proof.
+  intro epsilon.
+  ring.
+Qed.
+
+Lemma n_minus_1_times_epsilon_form : forall n epsilon : R,
+  (n - 1) * epsilon = n * epsilon - epsilon.
+Proof.
+  intros n epsilon.
+  ring.
+Qed.
+
+Lemma field_simplify_with_inverse : forall n epsilon : R,
+  epsilon <> 0 ->
+  (n * epsilon - epsilon) * / epsilon = n - 1.
+Proof.
+  intros n epsilon Heps_neq.
+  field.
+  exact Heps_neq.
+Qed.
+
+Lemma one_div_epsilon_simplify : forall epsilon : R,
+  1 / epsilon = 1 * / epsilon.
+Proof.
+  intro epsilon.
+  unfold Rdiv.
+  ring.
+Qed.
+
+Lemma reciprocal_large_n_bound : forall n epsilon : R,
+  epsilon > 0 ->
+  n - 1 > 1 / epsilon ->
+  (n - 1) * epsilon > 1.
+Proof.
+  intros n epsilon Heps Hn1.
+  rewrite n_minus_1_times_epsilon_form.
+  apply Rmult_gt_reg_r with (r := / epsilon).
+  - apply Rinv_0_lt_compat. exact Heps.
+  - assert (Heps_neq: epsilon <> 0) by lra.
+    rewrite field_simplify_with_inverse by exact Heps_neq.
+    replace (1 * / epsilon) with (/ epsilon) by ring.
+    rewrite one_div_epsilon_simplify in Hn1.
+    replace (1 * / epsilon) with (/ epsilon) in Hn1 by ring.
+    exact Hn1.
+Qed.
+
+Lemma INR_n_minus_1_positive : forall n : nat,
+  (n >= 2)%nat -> INR (n - 1) > 0.
+Proof.
+  intros n Hn.
+  apply lt_0_INR.
+  lia.
+Qed.
+
+Lemma archimed_ceiling_bound : forall x : R,
+  x > 0 ->
+  INR (S (Z.to_nat (up x))) >= x.
+Proof.
+  intros x Hx.
+  assert (Hceil_pos: (0 < up x)%Z).
+  { apply lt_IZR. destruct (archimed x) as [Hup _]. lra. }
+  rewrite S_INR.
+  rewrite INR_IZR_INZ.
+  rewrite Z2Nat.id by lia.
+  destruct (archimed x) as [Hup _].
+  lra.
+Qed.
+
+Lemma INR_n_ge_2_implies_n_minus_1_ge_1 : forall n : nat,
+  (n >= 2)%nat -> INR n - 1 >= 1.
+Proof.
+  intros n Hn.
+  assert (H: (2 <= n)%nat) by lia.
+  apply le_INR in H.
+  simpl in H.
+  lra.
+Qed.
+
+Lemma INR_n_minus_1_gt_bound : forall n_real bound : R,
+  n_real > bound + 1 ->
+  n_real - 1 > bound.
+Proof.
+  intros n_real bound Hn_bound.
+  lra.
+Qed.
+
+Lemma reciprocal_convergence_to_zero : forall epsilon : R, epsilon > 0 ->
+  exists N : nat, forall n : nat, (n >= N)%nat -> (n >= 2)%nat ->
+    1 / INR (n - 1) < epsilon.
+Proof.
+  intros epsilon Heps.
+  assert (H1eps_pos: 1 / epsilon > 0) by (apply inv_pos; exact Heps).
+  exists (S (S (S (Z.to_nat (up (1 / epsilon)))))).
+  intros n Hn Hn2.
+  assert (Hn1_pos: INR (n - 1) > 0) by (apply INR_n_minus_1_positive; exact Hn2).
+  assert (Hup_bound: INR (S (Z.to_nat (up (1 / epsilon)))) >= 1 / epsilon).
+  { apply archimed_ceiling_bound. exact H1eps_pos. }
+  assert (Hn_bound_plus_1: INR n > 1 / epsilon + 1).
+  { assert (Hn_SSS: INR n >= INR (S (S (S (Z.to_nat (up (1 / epsilon))))))).
+    { assert (H: (S (S (S (Z.to_nat (up (1 / epsilon))))) <= n)%nat) by lia.
+      apply le_INR in H.
+      lra. }
+    assert (HSSS_expand: INR (S (S (S (Z.to_nat (up (1 / epsilon)))))) > INR (S (Z.to_nat (up (1 / epsilon)))) + 1).
+    { repeat rewrite S_INR. lra. }
+    assert (Hup_plus_1: INR (S (Z.to_nat (up (1 / epsilon)))) + 1 > 1 / epsilon) by lra.
+    lra. }
+  assert (Hn_calc: INR (n - 1) = INR n - 1) by (apply INR_n_minus_1_formula; lia).
+  assert (Hn1_bound: INR n - 1 > 1 / epsilon).
+  { apply INR_n_minus_1_gt_bound with (bound := 1 / epsilon). exact Hn_bound_plus_1. }
+  assert (Hcalc: INR (n - 1) * epsilon > 1).
+  { rewrite Hn_calc. apply reciprocal_large_n_bound; [exact Heps | exact Hn1_bound]. }
+  apply Rmult_lt_reg_r with (r := INR (n - 1)); [exact Hn1_pos|].
+  unfold Rdiv. rewrite Rmult_assoc. rewrite Rinv_l by lra.
+  rewrite Rmult_1_r.
+  apply Rmult_lt_reg_r with (r := epsilon); [exact Heps|].
+  rewrite Rmult_1_l.
+  assert (Hgoal: epsilon < epsilon * INR (n - 1) * epsilon).
+  { assert (Hcalc2: 1 < INR (n - 1) * epsilon) by lra.
+    assert (Heps_pos: epsilon > 0) by exact Heps.
+    assert (Hprod: epsilon * (INR (n - 1) * epsilon) > epsilon * 1).
+    { apply Rmult_gt_compat_l; [exact Heps_pos | exact Hcalc2]. }
+    lra. }
+  exact Hgoal.
+Qed.
+
+Lemma one_minus_cos_bounded_by_two : forall x : R,
+  1 - cos x <= 2.
+Proof.
+  intro x.
+  assert (Hcos_bounds: -1 <= cos x <= 1) by apply COS_bound.
+  lra.
+Qed.
+
+Lemma rabs_one_minus_cos : forall n : nat,
+  (n >= 2)%nat ->
+  Rabs (1 - cos (2 * PI / INR n)) = 1 - cos (2 * PI / INR n).
+Proof.
+  intros n Hn.
+  rewrite Rabs_right.
+  - reflexivity.
+  - apply Rle_ge.
+    apply one_minus_cos_nonneg.
+Qed.
+
+Lemma cos_term_bounded : forall n : nat,
+  (n >= 2)%nat ->
+  1 - cos (2 * PI / INR n) <= 2.
+Proof.
+  intros n Hn.
+  apply one_minus_cos_bounded_by_two.
+Qed.
+
+Lemma sqr_nonneg : forall x : R, 0 <= x * x.
+Proof.
+  intro x.
+  destruct (Rle_dec 0 x) as [Hpos|Hneg].
+  - apply Rmult_le_pos; exact Hpos.
+  - assert (Hx_neg: x <= 0) by lra.
+    assert (H: x * x = (-x) * (-x)) by ring.
+    rewrite H.
+    apply Rmult_le_pos; lra.
+Qed.
+
+Lemma sqr_pos : forall x : R, x <> 0 -> 0 < x * x.
+Proof.
+  intros x Hneq.
+  destruct (Rtotal_order x 0) as [Hlt | [Heq | Hgt]].
+  - assert (H: x * x = (-x) * (-x)) by ring.
+    rewrite H.
+    apply Rmult_lt_0_compat; lra.
+  - contradiction.
+  - apply Rmult_lt_0_compat; exact Hgt.
+Qed.
+
+Lemma div_sqr_sqrt : forall a b : R,
+  a > 0 -> b > 0 ->
+  a / (sqrt b) = sqrt (a * a / b).
+Proof.
+  intros a b Ha Hb.
+  assert (Hb_neq: b <> 0) by lra.
+  assert (Hsqrt_pos: sqrt b > 0).
+  { apply sqrt_lt_R0. exact Hb. }
+  apply Rmult_eq_reg_r with (r := sqrt b); [|lra].
+  unfold Rdiv.
+  rewrite Rmult_assoc.
+  rewrite Rinv_l by lra.
+  rewrite Rmult_1_r.
+  assert (Haa_pos: 0 <= a * a) by apply sqr_nonneg.
+  assert (Hdiv_pos: 0 <= a * a * / b).
+  { apply Rmult_le_pos; [exact Haa_pos | apply Rlt_le, Rinv_0_lt_compat, Hb]. }
+  rewrite <- sqrt_mult.
+  - assert (Hcancel: a * a * / b * b = a * a).
+    { field. exact Hb_neq. }
+    rewrite Hcancel.
+    symmetry.
+    apply sqrt_square.
+    lra.
+  - exact Hdiv_pos.
+  - lra.
+Qed.
+
+Lemma one_minus_cos_sin_half : forall x : R,
+  1 - cos x = 2 * sin (x / 2) * sin (x / 2).
+Proof.
+  intro x.
+  assert (H: cos x = cos (2 * (x / 2))).
+  { assert (Heq: 2 * (x / 2) = x) by field. rewrite Heq. reflexivity. }
+  rewrite H.
+  rewrite cos_2a_cos.
+  pose proof (sin2_cos2 (x / 2)) as Hsincos.
+  unfold Rsqr in Hsincos.
+  lra.
+Qed.
+
+Lemma cos_minus_one_neg : forall x : R,
+  cos x - 1 = - (1 - cos x).
+Proof.
+  intro x.
+  lra.
+Qed.
+
+Lemma cos_minus_one_as_sin_squared : forall x : R,
+  cos x - 1 = - 2 * sin (x / 2) * sin (x / 2).
+Proof.
+  intro x.
+  rewrite cos_minus_one_neg.
+  rewrite one_minus_cos_sin_half.
+  lra.
+Qed.
+
+Lemma sin_double_angle : forall x : R,
+  sin (2 * x) = 2 * sin x * cos x.
+Proof.
+  intro x.
+  rewrite sin_2a.
+  reflexivity.
+Qed.
+
+Lemma Cmod_squared : forall z : Complex,
+  Cmod z * Cmod z = re z * re z + im z * im z.
+Proof.
+  intro z.
+  unfold Cmod.
+  assert (Hsqrt_pos: 0 <= re z * re z + im z * im z).
+  { apply Rplus_le_le_0_compat; apply sqr_nonneg. }
+  rewrite <- sqrt_mult by (apply Hsqrt_pos || lra).
+  rewrite sqrt_square by apply Hsqrt_pos.
+  reflexivity.
+Qed.
+
+Lemma zeta_minus_one_squared : forall n : nat,
+  (n >= 2)%nat ->
+  Cmod (Csub (zeta n) (mkComplex 1 0)) * Cmod (Csub (zeta n) (mkComplex 1 0)) =
+  4 * sin (PI / INR n) * sin (PI / INR n).
+Proof.
+  intros n Hn.
+  rewrite Cmod_squared.
+  unfold Csub, zeta. simpl.
+  assert (Hn_pos: INR n > 0) by (apply lt_0_INR; lia).
+  set (theta := PI / INR n).
+  assert (Hre: cos (2 * PI / INR n) - 1 = - 2 * sin theta * sin theta).
+  { unfold theta.
+    rewrite cos_minus_one_as_sin_squared.
+    assert (Heq: (2 * PI / INR n) / 2 = PI / INR n) by (field; lra).
+    rewrite Heq. reflexivity. }
+  assert (Him: sin (2 * PI / INR n) = 2 * sin theta * cos theta).
+  { unfold theta.
+    assert (Heq: 2 * PI / INR n = 2 * (PI / INR n)) by (field; lra).
+    rewrite Heq.
+    apply sin_double_angle. }
+  rewrite Hre, Him.
+  pose proof (sin2_cos2 theta) as Hsincos.
+  unfold Rsqr in Hsincos.
+  unfold theta in *.
+  nra.
+Qed.
+
+Lemma Cmod_nonneg : forall z : Complex, 0 <= Cmod z.
+Proof.
+  intro z.
+  unfold Cmod.
+  apply sqrt_pos.
+Qed.
+
+Lemma sin_bounded_0_to_pi : forall x : R,
+  0 <= x <= PI -> -1 <= sin x <= 1.
+Proof.
+  intros x Hx.
+  pose proof (SIN_bound x) as H.
+  lra.
+Qed.
+
+Lemma cos_lt_1_for_pos : forall t : R,
+  0 < t < PI -> cos t < 1.
+Proof.
+  intros t Ht.
+  assert (Hcos_bound: -1 <= cos t <= 1) by apply COS_bound.
+  destruct (Req_dec (cos t) 1) as [Heq | Hneq].
+  - assert (Hsin_sq: sin t * sin t + cos t * cos t = 1).
+    { pose proof (sin2_cos2 t) as H. unfold Rsqr in H. lra. }
+    rewrite Heq in Hsin_sq.
+    assert (Hsin_zero: sin t * sin t = 0) by lra.
+    assert (Hsin_eq_zero: sin t = 0).
+    { destruct (Req_dec (sin t) 0) as [Heq0 | Hneq0].
+      - exact Heq0.
+      - assert (Hpos: sin t * sin t > 0).
+        { apply sqr_pos. exact Hneq0. }
+        lra. }
+    assert (Hcontradiction: exists k : Z, t = IZR k * PI).
+    { apply sin_eq_0_0. exact Hsin_eq_zero. }
+    destruct Hcontradiction as [k Hk].
+    assert (Hk_bounds: k = 0%Z \/ (k >= 1)%Z \/ (k <= -1)%Z) by lia.
+    destruct Hk_bounds as [Hk0 | [Hk_pos | Hk_neg]].
+    + rewrite Hk0 in Hk. simpl in Hk. lra.
+    + assert (Ht_ge_pi: t >= PI).
+      { rewrite Hk.
+        assert (Hk_ge_1: IZR k >= 1).
+        { assert (H: (1 <= k)%Z) by lia.
+          apply (IZR_le 1 k) in H.
+          simpl in H. apply Rle_ge. exact H. }
+        assert (HPI_pos: PI >= 0) by (apply Rle_ge, Rlt_le, PI_RGT_0).
+        assert (H: IZR k * PI >= 1 * PI).
+        { apply Rmult_ge_compat_r; [exact HPI_pos | exact Hk_ge_1]. }
+        lra. }
+      lra.
+    + assert (Ht_neg: t < 0).
+      { rewrite Hk.
+        assert (Hk_le_minus1: IZR k <= -1).
+        { assert (H: (k <= -1)%Z) by lia.
+          apply (IZR_le k (-1)) in H.
+          simpl in H. exact H. }
+        assert (H: IZR k * PI <= (-1) * PI).
+        { apply Rmult_le_compat_r; [apply Rlt_le, PI_RGT_0 | exact Hk_le_minus1]. }
+        lra. }
+      lra.
+  - lra.
+Qed.
+
+Lemma sin_0_eq : sin 0 = 0.
+Proof.
+  apply sin_0.
+Qed.
+
+Lemma cos_0_eq : cos 0 = 1.
+Proof.
+  apply cos_0.
+Qed.
+
+Lemma derivable_sin : forall x : R, derivable_pt_lim sin x (cos x).
+Proof.
+  intro x.
+  apply derivable_pt_lim_sin.
+Qed.
+
+Lemma Rle_minus : forall a b : R, a <= b <-> 0 <= b - a.
+Proof.
+  intros a b.
+  split; intro H; lra.
+Qed.
+
+Theorem zeta_minus_one_equals_instability_excess :
+  forall n : nat, (n >= 3)%nat ->
+  Cmod (Csub (zeta n) (mkComplex 1 0)) =
+    2 * Rabs (sin (PI / INR n)).
+Proof.
+  intros n Hn.
+  assert (Hn2: (n >= 2)%nat) by lia.
+  pose proof (zeta_minus_one_squared n Hn2) as Hsq.
+  assert (Hcmod_pos: 0 <= Cmod (Csub (zeta n) (mkComplex 1 0))).
+  { apply Cmod_nonneg. }
+  assert (Hn_pos: INR n > 0) by (apply lt_0_INR; lia).
+  assert (Hpi_n_bound: 0 < PI / INR n < PI).
+  { split; [apply Rmult_lt_0_compat; [apply PI_RGT_0 | apply Rinv_0_lt_compat; exact Hn_pos] |].
+    assert (Hn_ge_3: INR n >= 3).
+    { assert (H: (3 <= n)%nat) by lia. apply le_INR in H. simpl in H. lra. }
+    assert (Hineq: PI / INR n < PI / 1) by (apply Rmult_lt_compat_l; [apply PI_RGT_0 | apply Rinv_1_lt_contravar; lra]).
+    unfold Rdiv in Hineq. rewrite Rinv_1, Rmult_1_r in Hineq. exact Hineq. }
+  assert (Hsin_pos: 0 <= sin (PI / INR n)).
+  { apply sin_ge_0; lra. }
+  assert (Habs_sin: Rabs (sin (PI / INR n)) = sin (PI / INR n)).
+  { apply Rabs_right. apply Rle_ge. exact Hsin_pos. }
+  assert (H2_abs_sin_pos: 0 <= 2 * Rabs (sin (PI / INR n))).
+  { rewrite Habs_sin. assert (H: 0 <= 2) by lra. apply Rmult_le_pos; lra. }
+  apply Rmult_eq_reg_l with (r := Cmod (Csub (zeta n) (mkComplex 1 0)) + 2 * Rabs (sin (PI / INR n))).
+  - assert (Hgoal_sq: (Cmod (Csub (zeta n) (mkComplex 1 0))) * (Cmod (Csub (zeta n) (mkComplex 1 0))) =
+                      (2 * Rabs (sin (PI / INR n))) * (2 * Rabs (sin (PI / INR n)))).
+    { assert (Heq: (2 * Rabs (sin (PI / INR n))) * (2 * Rabs (sin (PI / INR n))) =
+                   4 * sin (PI / INR n) * sin (PI / INR n)).
+      { rewrite Habs_sin. ring. }
+      rewrite Heq. exact Hsq. }
+    assert (Hdiff_of_sq: forall a b : R, 0 <= a -> 0 <= b -> a * a = b * b -> (a + b) * (a - b) = 0).
+    { intros a b Ha Hb Heq. nra. }
+    pose proof (Hdiff_of_sq (Cmod (Csub (zeta n) (mkComplex 1 0))) (2 * Rabs (sin (PI / INR n)))
+                 Hcmod_pos H2_abs_sin_pos Hgoal_sq) as Hdiff.
+    assert (Hsum_pos: Cmod (Csub (zeta n) (mkComplex 1 0)) + 2 * Rabs (sin (PI / INR n)) > 0).
+    { assert (Hn_ge_3: INR n >= 3).
+      { assert (H: (3 <= n)%nat) by lia. apply le_INR in H. simpl in H. lra. }
+      assert (Hsin_gt_0: sin (PI / INR n) > 0).
+      { apply sin_gt_0; lra. }
+      rewrite Habs_sin. nra. }
+    assert (Hcancel: (Cmod (Csub (zeta n) (mkComplex 1 0)) + 2 * Rabs (sin (PI / INR n))) *
+                     (Cmod (Csub (zeta n) (mkComplex 1 0)) - 2 * Rabs (sin (PI / INR n))) = 0 ->
+                     Cmod (Csub (zeta n) (mkComplex 1 0)) - 2 * Rabs (sin (PI / INR n)) = 0).
+    { intro H. apply Rmult_integral in H. destruct H as [H | H].
+      - lra.
+      - exact H. }
+    apply Hcancel in Hdiff. lra.
+  - assert (Hn_ge_3: INR n >= 3).
+    { assert (H: (3 <= n)%nat) by lia. apply le_INR in H. simpl in H. lra. }
+    assert (Hsin_gt_0: sin (PI / INR n) > 0).
+    { apply sin_gt_0; lra. }
+    rewrite Habs_sin. nra.
+Qed.
+
+End RepresentationTheory.
 
 End TernaryAlgebraicStructure.
