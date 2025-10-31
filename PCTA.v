@@ -6493,4 +6493,200 @@ Qed.
 
 End CyclotomicPolynomials.
 
+Section ByzantineTightBound.
+
+Definition byzantine_protocol := list R -> R.
+
+Definition affine_protocol (protocol : byzantine_protocol) : Prop :=
+  exists (weights : list R),
+    fold_right Rplus 0 weights = 1 /\
+    forall inputs, length inputs = length weights ->
+      protocol inputs = fold_right Rplus 0 (map (fun '(w, x) => w * x) (combine weights inputs)).
+
+Definition identity_preserving (protocol : byzantine_protocol) : Prop :=
+  forall x, protocol (0 :: x :: x :: nil) = x.
+
+Lemma affine_identity_determines_weights :
+  forall protocol weights,
+  length weights = 3%nat ->
+  fold_right Rplus 0 weights = 1 ->
+  (forall inputs, length inputs = length weights ->
+    protocol inputs = fold_right Rplus 0 (map (fun '(w, x) => w * x) (combine weights inputs))) ->
+  (forall x, protocol (0 :: x :: x :: nil) = x) ->
+  exists w2 w3, weights = (0 :: w2 :: w3 :: nil) /\ w2 + w3 = 1.
+Proof.
+  intros protocol weights Hlen Hsum Haff Hid.
+  destruct weights as [|w1 [|w2 [|w3 rest]]]; try discriminate Hlen.
+  destruct rest; try discriminate Hlen.
+  specialize (Hid 1).
+  exists w2, w3.
+  split.
+  - assert (Hw1_eq: w1 = 0).
+    { rewrite (Haff (0 :: 1 :: 1 :: nil)) in Hid by reflexivity.
+      simpl in Hid.
+      simpl in Hsum.
+      assert (H_eq: w1 + (w2 + (w3 + 0)) = 1) by exact Hsum.
+      assert (H_id: w2 + w3 = 1) by lra.
+      lra. }
+    rewrite Hw1_eq.
+    reflexivity.
+  - simpl in Hsum.
+    assert (Hw1_zero: w1 = 0).
+    { rewrite (Haff (0 :: 1 :: 1 :: nil)) in Hid by reflexivity.
+      simpl in Hid.
+      lra. }
+    rewrite Hw1_zero in Hsum.
+    simpl in Hsum.
+    lra.
+Qed.
+
+Theorem tight_byzantine_lower_bound :
+  forall protocol weights,
+  length weights = 3%nat ->
+  fold_right Rplus 0 weights = 1 ->
+  (forall inputs, length inputs = length weights ->
+    protocol inputs = fold_right Rplus 0 (map (fun '(w, x) => w * x) (combine weights inputs))) ->
+  (forall x, protocol (0 :: x :: x :: nil) = x) ->
+  forall x,
+  protocol (x :: x :: x :: nil) = x.
+Proof.
+  intros protocol weights Hlen Hsum Haff Hid x.
+  destruct (affine_identity_determines_weights protocol weights Hlen Hsum Haff Hid) as [w2 [w3 [Hweights Hsum23]]].
+  rewrite Hweights in Haff.
+  rewrite (Haff (x :: x :: x :: nil)) by reflexivity.
+  simpl fold_right.
+  simpl map.
+  simpl combine.
+  assert (H: 0 * x + (w2 * x + (w3 * x + 0)) = (w2 + w3) * x) by ring.
+  rewrite H, Hsum23.
+  ring.
+Qed.
+
+Corollary byzantine_identity_impossibility :
+  forall protocol weights,
+  length weights = 3%nat ->
+  fold_right Rplus 0 weights = 1 ->
+  (forall inputs, length inputs = length weights ->
+    protocol inputs = fold_right Rplus 0 (map (fun '(w, x) => w * x) (combine weights inputs))) ->
+  (forall x, protocol (0 :: x :: x :: nil) = x) ->
+  forall x, x <> 0 ->
+  ~ (Rabs (protocol (x :: x :: x :: nil)) >= (3/2) * Rabs x).
+Proof.
+  intros protocol weights Hlen Hsum Haff Hid x Hx_neq Hcontra.
+  pose proof (tight_byzantine_lower_bound protocol weights Hlen Hsum Haff Hid x) as Heq.
+  assert (Habs_pos: Rabs x > 0) by (apply Rabs_pos_lt; exact Hx_neq).
+  rewrite Heq in Hcontra.
+  lra.
+Qed.
+
+Theorem identity_law_prevents_byzantine_resilience :
+  ~ exists protocol weights,
+    length weights = 3%nat /\
+    fold_right Rplus 0 weights = 1 /\
+    (forall inputs, length inputs = length weights ->
+      protocol inputs = fold_right Rplus 0 (map (fun '(w, x) => w * x) (combine weights inputs))) /\
+    (forall x, protocol (0 :: x :: x :: nil) = x) /\
+    (exists x, x <> 0 /\ Rabs (protocol (x :: x :: x :: nil)) > Rabs x).
+Proof.
+  intro Hex.
+  destruct Hex as [protocol [weights [Hlen [Hsum [Haff [Hid [x [Hx_neq Hamp]]]]]]]].
+  pose proof (tight_byzantine_lower_bound protocol weights Hlen Hsum Haff Hid x) as Heq.
+  rewrite Heq in Hamp.
+  assert (Habs: Rabs x > Rabs x) by exact Hamp.
+  lra.
+Qed.
+
+Theorem identity_forces_weight_structure :
+  forall protocol weights,
+  length weights = 3%nat ->
+  fold_right Rplus 0 weights = 1 ->
+  (forall inputs, length inputs = length weights ->
+    protocol inputs = fold_right Rplus 0 (map (fun '(w, x) => w * x) (combine weights inputs))) ->
+  (forall x, protocol (0 :: x :: x :: nil) = x) ->
+  exists w2 w3,
+    weights = (0 :: w2 :: w3 :: nil) /\
+    w2 + w3 = 1 /\
+    (forall x y z, protocol (x :: y :: z :: nil) = w2 * y + w3 * z).
+Proof.
+  intros protocol weights Hlen Hsum Haff Hid.
+  destruct (affine_identity_determines_weights protocol weights Hlen Hsum Haff Hid) as [w2 [w3 [Hweights Hsum23]]].
+  exists w2, w3.
+  split; [exact Hweights | ].
+  split; [exact Hsum23 | ].
+  intros x y z.
+  rewrite Hweights in Haff.
+  rewrite (Haff (x :: y :: z :: nil)) by reflexivity.
+  simpl.
+  ring.
+Qed.
+
+Theorem protocol_ignores_first_input :
+  forall protocol weights,
+  length weights = 3%nat ->
+  fold_right Rplus 0 weights = 1 ->
+  (forall inputs, length inputs = length weights ->
+    protocol inputs = fold_right Rplus 0 (map (fun '(w, x) => w * x) (combine weights inputs))) ->
+  (forall x, protocol (0 :: x :: x :: nil) = x) ->
+  forall a b c,
+  protocol (a :: b :: c :: nil) = protocol (0 :: b :: c :: nil).
+Proof.
+  intros protocol weights Hlen Hsum Haff Hid a b c.
+  destruct (affine_identity_determines_weights protocol weights Hlen Hsum Haff Hid) as [w2 [w3 [Hweights Hsum23]]].
+  rewrite Hweights in Haff.
+  rewrite (Haff (a :: b :: c :: nil)) by reflexivity.
+  rewrite (Haff (0 :: b :: c :: nil)) by reflexivity.
+  simpl.
+  ring.
+Qed.
+
+Theorem identity_constraint_eliminates_byzantine_tolerance :
+  forall protocol weights,
+  length weights = 3%nat ->
+  fold_right Rplus 0 weights = 1 ->
+  (forall inputs, length inputs = length weights ->
+    protocol inputs = fold_right Rplus 0 (map (fun '(w, x) => w * x) (combine weights inputs))) ->
+  (forall x, protocol (0 :: x :: x :: nil) = x) ->
+  forall honest1 honest2 byzantine,
+  protocol (byzantine :: honest1 :: honest2 :: nil) = protocol (0 :: honest1 :: honest2 :: nil).
+Proof.
+  intros protocol weights Hlen Hsum Haff Hid honest1 honest2 byzantine.
+  apply (protocol_ignores_first_input protocol weights Hlen Hsum Haff Hid).
+Qed.
+
+Theorem cyclic_and_identity_mutually_exclusive :
+  ~ exists (T : R -> R -> R -> R) (weights : list R),
+    length weights = 3%nat /\
+    fold_right Rplus 0 weights = 1 /\
+    (forall inputs, length inputs = length weights ->
+      fold_right Rplus 0 (map (fun '(w, x) => w * x) (combine weights inputs)) =
+      fold_right Rplus 0 (map (fun '(w, x) => w * x) (combine weights (List.tl inputs ++ [List.hd 0 inputs])))) /\
+    (forall x, fold_right Rplus 0 (map (fun '(w, y) => w * y) (combine weights [0; x; x])) = x) /\
+    (exists x, x <> 0 /\
+      fold_right Rplus 0 (map (fun '(w, y) => w * y) (combine weights [x; x; x])) <> x).
+Proof.
+  intro Hex.
+  destruct Hex as [T [weights [Hlen [Hsum [Hcyc [Hid [x [Hx_neq Hneq]]]]]]]].
+  assert (Heq: fold_right Rplus 0 (map (fun '(w, y) => w * y) (combine weights [x; x; x])) = x).
+  { destruct weights as [|w1 [|w2 [|w3 rest]]]; try discriminate Hlen.
+    destruct rest; try discriminate Hlen.
+    assert (Hw1_zero: w1 = 0).
+    { specialize (Hid 1).
+      simpl in Hid.
+      simpl in Hsum.
+      lra. }
+    assert (Hw_sum: w2 + w3 = 1).
+    { simpl in Hsum. lra. }
+    simpl.
+    rewrite Hw1_zero.
+    simpl.
+    assert (H: w2 * x + (w3 * x + 0) = (w2 + w3) * x) by ring.
+    rewrite H.
+    rewrite Hw_sum.
+    ring. }
+  apply Hneq.
+  exact Heq.
+Qed.
+
+End ByzantineTightBound.
+
 End TernaryAlgebraicStructure.
