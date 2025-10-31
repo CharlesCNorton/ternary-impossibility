@@ -1,0 +1,1343 @@
+{
+  "affine_d2": {
+    "aggregator": "affine_d2",
+    "config": {
+      "d_model": 128,
+      "n_heads": 4,
+      "n_layers": 6,
+      "mlp_ratio": 4,
+      "patch_size": 4,
+      "dropout": 0.1,
+      "batch_size": 2048,
+      "epochs": 20,
+      "lr": 0.0003,
+      "weight_decay": 0.05,
+      "grad_clip": 1.0,
+      "measure_every": 5,
+      "pgd_epsilon": 0.03137254901960784,
+      "pgd_alpha": 0.00784313725490196,
+      "pgd_steps": 10,
+      "device": "cuda",
+      "seed": 42
+    },
+    "n_parameters": 1202826,
+    "training_time_seconds": 267.66665983200073,
+    "pre_training_metrics": {
+      "pre_diagonal_gain": 1.500000238418579,
+      "pre_identity_error": 0.0
+    },
+    "final_metrics": {
+      "test_loss": 1.4528211988449096,
+      "test_accuracy": 0.4695,
+      "clean_accuracy": 0.4695,
+      "adversarial_accuracy": 0.0993,
+      "robustness_gap": 0.3702,
+      "grad_norm_mean": 27.34189193038563,
+      "grad_norm_std": 110.6856423086597,
+      "grad_norm_max": 509.80771937016885,
+      "grad_explode_rate": 0.05,
+      "block_spectral_norm_mean": 1.9078022440274556,
+      "block_spectral_norm_max": 4.097396373748779,
+      "block_spectral_norm_std": 0.9836396066760874,
+      "block_spectral_norms": [
+        4.097396373748779,
+        1.4458861351013184,
+        1.4060393571853638,
+        1.4507285356521606,
+        1.3795911073684692,
+        1.6671719551086426
+      ],
+      "final_diagonal_gain": 1.500000238418579,
+      "final_identity_error": 0.0
+    },
+    "training_history": [
+      {
+        "epoch": 1,
+        "train_loss": 2.052794111251831,
+        "train_accuracy": 0.23144,
+        "test_loss": 1.9062585262298584,
+        "test_accuracy": 0.2915
+      },
+      {
+        "epoch": 2,
+        "train_loss": 1.8998051895523071,
+        "train_accuracy": 0.2984,
+        "test_loss": 1.8266884813308715,
+        "test_accuracy": 0.327
+      },
+      {
+        "epoch": 3,
+        "train_loss": 1.8310330270004271,
+        "train_accuracy": 0.32874,
+        "test_loss": 1.749062632751465,
+        "test_accuracy": 0.3656
+      },
+      {
+        "epoch": 4,
+        "train_loss": 1.7799280125808716,
+        "train_accuracy": 0.35052,
+        "test_loss": 1.6937018894195557,
+        "test_accuracy": 0.3835
+      },
+      {
+        "epoch": 5,
+        "train_loss": 1.7331646072769165,
+        "train_accuracy": 0.3666,
+        "test_loss": 1.6614570518493652,
+        "test_accuracy": 0.393,
+        "diagonal_gain": 1.5000001192092896,
+        "clean_accuracy": 0.393,
+        "adversarial_accuracy": 0.1197,
+        "robustness_gap": 0.2733,
+        "grad_norm_mean": 23.92223404077735,
+        "grad_norm_std": 96.51451543526095,
+        "grad_norm_max": 444.6177693518536,
+        "grad_explode_rate": 0.05,
+        "block_spectral_norm_mean": 1.6014300386110942,
+        "block_spectral_norm_max": 3.4201016426086426,
+        "block_spectral_norm_std": 0.8173706378176177,
+        "block_spectral_norms": [
+          3.4201016426086426,
+          1.4136203527450562,
+          1.2065767049789429,
+          1.187605619430542,
+          1.1733604669570923,
+          1.207315444946289
+        ]
+      },
+      {
+        "epoch": 6,
+        "train_loss": 1.6982520453262329,
+        "train_accuracy": 0.37672,
+        "test_loss": 1.6276264852523803,
+        "test_accuracy": 0.4086
+      },
+      {
+        "epoch": 7,
+        "train_loss": 1.6569740706634521,
+        "train_accuracy": 0.39708,
+        "test_loss": 1.5946093357086182,
+        "test_accuracy": 0.4196
+      },
+      {
+        "epoch": 8,
+        "train_loss": 1.6278166730499268,
+        "train_accuracy": 0.4059,
+        "test_loss": 1.5917023443222047,
+        "test_accuracy": 0.4247
+      },
+      {
+        "epoch": 9,
+        "train_loss": 1.6054566396713257,
+        "train_accuracy": 0.41072,
+        "test_loss": 1.5571444025039674,
+        "test_accuracy": 0.4332
+      },
+      {
+        "epoch": 10,
+        "train_loss": 1.581968214416504,
+        "train_accuracy": 0.42146,
+        "test_loss": 1.5287970361709595,
+        "test_accuracy": 0.4405,
+        "diagonal_gain": 1.5000001192092896,
+        "clean_accuracy": 0.4405,
+        "adversarial_accuracy": 0.1126,
+        "robustness_gap": 0.3279,
+        "grad_norm_mean": 24.617490763143103,
+        "grad_norm_std": 96.68492292953786,
+        "grad_norm_max": 446.05337841298336,
+        "grad_explode_rate": 0.05,
+        "block_spectral_norm_mean": 1.763477087020874,
+        "block_spectral_norm_max": 3.6008880138397217,
+        "block_spectral_norm_std": 0.8229861967376239,
+        "block_spectral_norms": [
+          3.6008880138397217,
+          1.4902105331420898,
+          1.399898648262024,
+          1.3791826963424683,
+          1.3497252464294434,
+          1.360957384109497
+        ]
+      },
+      {
+        "epoch": 11,
+        "train_loss": 1.560164299736023,
+        "train_accuracy": 0.43036,
+        "test_loss": 1.5381185272216797,
+        "test_accuracy": 0.4401
+      },
+      {
+        "epoch": 12,
+        "train_loss": 1.5453354200363159,
+        "train_accuracy": 0.43372,
+        "test_loss": 1.4987914770126343,
+        "test_accuracy": 0.4507
+      },
+      {
+        "epoch": 13,
+        "train_loss": 1.529331930656433,
+        "train_accuracy": 0.43936,
+        "test_loss": 1.48517709274292,
+        "test_accuracy": 0.4579
+      },
+      {
+        "epoch": 14,
+        "train_loss": 1.5160056935882569,
+        "train_accuracy": 0.4436,
+        "test_loss": 1.473939972114563,
+        "test_accuracy": 0.4576
+      },
+      {
+        "epoch": 15,
+        "train_loss": 1.5080957070922851,
+        "train_accuracy": 0.4499,
+        "test_loss": 1.4701965305328368,
+        "test_accuracy": 0.462,
+        "diagonal_gain": 1.500000238418579,
+        "clean_accuracy": 0.462,
+        "adversarial_accuracy": 0.1032,
+        "robustness_gap": 0.3588,
+        "grad_norm_mean": 29.69286287576558,
+        "grad_norm_std": 112.67001116818588,
+        "grad_norm_max": 520.8049093309311,
+        "grad_explode_rate": 0.05,
+        "block_spectral_norm_mean": 1.8062617977460225,
+        "block_spectral_norm_max": 3.812439441680908,
+        "block_spectral_norm_std": 0.8990367528440902,
+        "block_spectral_norms": [
+          3.812439441680908,
+          1.4053996801376343,
+          1.3399224281311035,
+          1.4338184595108032,
+          1.338761806488037,
+          1.507228970527649
+        ]
+      },
+      {
+        "epoch": 16,
+        "train_loss": 1.4976570699691774,
+        "train_accuracy": 0.45072,
+        "test_loss": 1.4650909009933473,
+        "test_accuracy": 0.4632
+      },
+      {
+        "epoch": 17,
+        "train_loss": 1.496036284637451,
+        "train_accuracy": 0.45168,
+        "test_loss": 1.4609911226272583,
+        "test_accuracy": 0.4599
+      },
+      {
+        "epoch": 18,
+        "train_loss": 1.4845161199188233,
+        "train_accuracy": 0.45698,
+        "test_loss": 1.4537384288787842,
+        "test_accuracy": 0.4681
+      },
+      {
+        "epoch": 19,
+        "train_loss": 1.482087991065979,
+        "train_accuracy": 0.45618,
+        "test_loss": 1.4528211988449096,
+        "test_accuracy": 0.4695
+      },
+      {
+        "epoch": 20,
+        "train_loss": 1.4820880564117431,
+        "train_accuracy": 0.4583,
+        "test_loss": 1.4490483318328857,
+        "test_accuracy": 0.4694,
+        "diagonal_gain": 1.500000238418579,
+        "clean_accuracy": 0.4694,
+        "adversarial_accuracy": 0.0979,
+        "robustness_gap": 0.3715,
+        "grad_norm_mean": 27.285083256494193,
+        "grad_norm_std": 111.5637578197958,
+        "grad_norm_max": 513.5791113154536,
+        "grad_explode_rate": 0.05,
+        "block_spectral_norm_mean": 1.8454571167627971,
+        "block_spectral_norm_max": 3.726325273513794,
+        "block_spectral_norm_std": 0.8429073254313946,
+        "block_spectral_norms": [
+          3.726325273513794,
+          1.514756202697754,
+          1.3946884870529175,
+          1.531973958015442,
+          1.399429440498352,
+          1.505569338798523
+        ]
+      }
+    ]
+  },
+  "affine_d3": {
+    "aggregator": "affine_d3",
+    "config": {
+      "d_model": 128,
+      "n_heads": 4,
+      "n_layers": 6,
+      "mlp_ratio": 4,
+      "patch_size": 4,
+      "dropout": 0.1,
+      "batch_size": 2048,
+      "epochs": 20,
+      "lr": 0.0003,
+      "weight_decay": 0.05,
+      "grad_clip": 1.0,
+      "measure_every": 5,
+      "pgd_epsilon": 0.03137254901960784,
+      "pgd_alpha": 0.00784313725490196,
+      "pgd_steps": 10,
+      "device": "cuda",
+      "seed": 42
+    },
+    "n_parameters": 1202826,
+    "training_time_seconds": 270.43147921562195,
+    "pre_training_metrics": {
+      "pre_diagonal_gain": 1.0000001192092896,
+      "pre_identity_error": 0.3333333146775162
+    },
+    "final_metrics": {
+      "test_loss": 1.4694912563323974,
+      "test_accuracy": 0.4581,
+      "clean_accuracy": 0.4581,
+      "adversarial_accuracy": 0.1019,
+      "robustness_gap": 0.3562,
+      "grad_norm_mean": 30.422091087277163,
+      "grad_norm_std": 125.69354209809421,
+      "grad_norm_max": 578.3060695199333,
+      "grad_explode_rate": 0.05,
+      "block_spectral_norm_mean": 1.8859630823135376,
+      "block_spectral_norm_max": 3.9979465007781982,
+      "block_spectral_norm_std": 0.9517900928633211,
+      "block_spectral_norms": [
+        3.9979465007781982,
+        1.430299997329712,
+        1.3210779428482056,
+        1.4486843347549438,
+        1.412161946296692,
+        1.7056077718734741
+      ],
+      "final_diagonal_gain": 1.0000001192092896,
+      "final_identity_error": 0.33333331675990474
+    },
+    "training_history": [
+      {
+        "epoch": 1,
+        "train_loss": 2.068292067108154,
+        "train_accuracy": 0.2235,
+        "test_loss": 1.9260314720153808,
+        "test_accuracy": 0.2821
+      },
+      {
+        "epoch": 2,
+        "train_loss": 1.9161288329696655,
+        "train_accuracy": 0.29108,
+        "test_loss": 1.8403696533203124,
+        "test_accuracy": 0.3241
+      },
+      {
+        "epoch": 3,
+        "train_loss": 1.8487950617599487,
+        "train_accuracy": 0.32252,
+        "test_loss": 1.7731280464172363,
+        "test_accuracy": 0.3506
+      },
+      {
+        "epoch": 4,
+        "train_loss": 1.801817894859314,
+        "train_accuracy": 0.33934,
+        "test_loss": 1.7199078037261963,
+        "test_accuracy": 0.3678
+      },
+      {
+        "epoch": 5,
+        "train_loss": 1.7587044310760498,
+        "train_accuracy": 0.35758,
+        "test_loss": 1.6847653041839599,
+        "test_accuracy": 0.3861,
+        "diagonal_gain": 1.0000001192092896,
+        "clean_accuracy": 0.3861,
+        "adversarial_accuracy": 0.1369,
+        "robustness_gap": 0.2492,
+        "grad_norm_mean": 22.64071665308163,
+        "grad_norm_std": 92.96081858543305,
+        "grad_norm_max": 427.84615075636543,
+        "grad_explode_rate": 0.05,
+        "block_spectral_norm_mean": 1.5522057215372722,
+        "block_spectral_norm_max": 3.3754360675811768,
+        "block_spectral_norm_std": 0.8192888139947669,
+        "block_spectral_norms": [
+          3.3754360675811768,
+          1.3618415594100952,
+          1.159191608428955,
+          1.146027684211731,
+          1.1303354501724243,
+          1.1404019594192505
+        ]
+      },
+      {
+        "epoch": 6,
+        "train_loss": 1.7268256520843506,
+        "train_accuracy": 0.36608,
+        "test_loss": 1.6588556678771973,
+        "test_accuracy": 0.3949
+      },
+      {
+        "epoch": 7,
+        "train_loss": 1.6897305810928345,
+        "train_accuracy": 0.38364,
+        "test_loss": 1.6156503707885743,
+        "test_accuracy": 0.4122
+      },
+      {
+        "epoch": 8,
+        "train_loss": 1.652899737854004,
+        "train_accuracy": 0.39522,
+        "test_loss": 1.6044174478530884,
+        "test_accuracy": 0.4174
+      },
+      {
+        "epoch": 9,
+        "train_loss": 1.6275174517822266,
+        "train_accuracy": 0.40318,
+        "test_loss": 1.5655722969055175,
+        "test_accuracy": 0.425
+      },
+      {
+        "epoch": 10,
+        "train_loss": 1.6081667428970337,
+        "train_accuracy": 0.41302,
+        "test_loss": 1.5643647611618041,
+        "test_accuracy": 0.4221,
+        "diagonal_gain": 1.0000001192092896,
+        "clean_accuracy": 0.4221,
+        "adversarial_accuracy": 0.1134,
+        "robustness_gap": 0.3087,
+        "grad_norm_mean": 36.13668654167064,
+        "grad_norm_std": 139.41275208025297,
+        "grad_norm_max": 643.8195401653861,
+        "grad_explode_rate": 0.05,
+        "block_spectral_norm_mean": 1.748393476009369,
+        "block_spectral_norm_max": 3.766831874847412,
+        "block_spectral_norm_std": 0.903628349786683,
+        "block_spectral_norms": [
+          3.766831874847412,
+          1.4267748594284058,
+          1.3494083881378174,
+          1.3282928466796875,
+          1.2889002561569214,
+          1.3301526308059692
+        ]
+      },
+      {
+        "epoch": 11,
+        "train_loss": 1.588118979034424,
+        "train_accuracy": 0.41586,
+        "test_loss": 1.5652584020614624,
+        "test_accuracy": 0.4298
+      },
+      {
+        "epoch": 12,
+        "train_loss": 1.5719909174728393,
+        "train_accuracy": 0.42296,
+        "test_loss": 1.525988035774231,
+        "test_accuracy": 0.4391
+      },
+      {
+        "epoch": 13,
+        "train_loss": 1.5573600204467772,
+        "train_accuracy": 0.43096,
+        "test_loss": 1.5149445474624634,
+        "test_accuracy": 0.4472
+      },
+      {
+        "epoch": 14,
+        "train_loss": 1.5449947194290161,
+        "train_accuracy": 0.4318,
+        "test_loss": 1.5002608798980712,
+        "test_accuracy": 0.4448
+      },
+      {
+        "epoch": 15,
+        "train_loss": 1.5343931497955323,
+        "train_accuracy": 0.4351,
+        "test_loss": 1.487874799156189,
+        "test_accuracy": 0.4546,
+        "diagonal_gain": 1.0000001192092896,
+        "clean_accuracy": 0.4546,
+        "adversarial_accuracy": 0.0998,
+        "robustness_gap": 0.3548,
+        "grad_norm_mean": 31.784436268274618,
+        "grad_norm_std": 129.8307209699048,
+        "grad_norm_max": 597.702408770253,
+        "grad_explode_rate": 0.05,
+        "block_spectral_norm_mean": 1.8130433162053425,
+        "block_spectral_norm_max": 4.000960350036621,
+        "block_spectral_norm_std": 0.9812183358086074,
+        "block_spectral_norms": [
+          4.000960350036621,
+          1.3576595783233643,
+          1.2718589305877686,
+          1.393151879310608,
+          1.338944435119629,
+          1.515684723854065
+        ]
+      },
+      {
+        "epoch": 16,
+        "train_loss": 1.5238721272659301,
+        "train_accuracy": 0.44144,
+        "test_loss": 1.4892622323989868,
+        "test_accuracy": 0.4537
+      },
+      {
+        "epoch": 17,
+        "train_loss": 1.5206697200775146,
+        "train_accuracy": 0.44004,
+        "test_loss": 1.484504708480835,
+        "test_accuracy": 0.4559
+      },
+      {
+        "epoch": 18,
+        "train_loss": 1.509656696586609,
+        "train_accuracy": 0.44622,
+        "test_loss": 1.4737370164871215,
+        "test_accuracy": 0.4568
+      },
+      {
+        "epoch": 19,
+        "train_loss": 1.5083337495422364,
+        "train_accuracy": 0.44716,
+        "test_loss": 1.4705097858428955,
+        "test_accuracy": 0.4555
+      },
+      {
+        "epoch": 20,
+        "train_loss": 1.50911385307312,
+        "train_accuracy": 0.4449,
+        "test_loss": 1.4694912563323974,
+        "test_accuracy": 0.4581,
+        "diagonal_gain": 1.0000001192092896,
+        "clean_accuracy": 0.4581,
+        "adversarial_accuracy": 0.1025,
+        "robustness_gap": 0.3556,
+        "grad_norm_mean": 30.259905348647028,
+        "grad_norm_std": 125.09998336483162,
+        "grad_norm_max": 575.5574378554145,
+        "grad_explode_rate": 0.05,
+        "block_spectral_norm_mean": 1.8656599322954814,
+        "block_spectral_norm_max": 3.91264271736145,
+        "block_spectral_norm_std": 0.9189529276800116,
+        "block_spectral_norms": [
+          3.91264271736145,
+          1.4815466403961182,
+          1.3445979356765747,
+          1.4636623859405518,
+          1.3899288177490234,
+          1.60158109664917
+        ]
+      }
+    ]
+  },
+  "median_soft": {
+    "aggregator": "median_soft",
+    "config": {
+      "d_model": 128,
+      "n_heads": 4,
+      "n_layers": 6,
+      "mlp_ratio": 4,
+      "patch_size": 4,
+      "dropout": 0.1,
+      "batch_size": 2048,
+      "epochs": 20,
+      "lr": 0.0003,
+      "weight_decay": 0.05,
+      "grad_clip": 1.0,
+      "measure_every": 5,
+      "pgd_epsilon": 0.03137254901960784,
+      "pgd_alpha": 0.00784313725490196,
+      "pgd_steps": 10,
+      "device": "cuda",
+      "seed": 42
+    },
+    "n_parameters": 1202826,
+    "training_time_seconds": 505.0945978164673,
+    "pre_training_metrics": {
+      "pre_diagonal_gain": 1.0,
+      "pre_identity_error": 0.0005031123961149099
+    },
+    "final_metrics": {
+      "test_loss": 1.4621728996276855,
+      "test_accuracy": 0.4611,
+      "clean_accuracy": 0.4611,
+      "adversarial_accuracy": 0.1015,
+      "robustness_gap": 0.3596,
+      "grad_norm_mean": 29.689118125194113,
+      "grad_norm_std": 122.37906954114916,
+      "grad_norm_max": 563.1261356997173,
+      "grad_explode_rate": 0.05,
+      "block_spectral_norm_mean": 1.7848310271898906,
+      "block_spectral_norm_max": 3.7527053356170654,
+      "block_spectral_norm_std": 0.8815786014542781,
+      "block_spectral_norms": [
+        3.7527053356170654,
+        1.3209383487701416,
+        1.3396327495574951,
+        1.4789552688598633,
+        1.399353265762329,
+        1.4174011945724487
+      ],
+      "final_diagonal_gain": 1.0,
+      "final_identity_error": 0.0005071930240124201
+    },
+    "training_history": [
+      {
+        "epoch": 1,
+        "train_loss": 2.0537797189712523,
+        "train_accuracy": 0.23116,
+        "test_loss": 1.9164751960754394,
+        "test_accuracy": 0.2882
+      },
+      {
+        "epoch": 2,
+        "train_loss": 1.8980416286468507,
+        "train_accuracy": 0.29964,
+        "test_loss": 1.8203440923690797,
+        "test_accuracy": 0.3311
+      },
+      {
+        "epoch": 3,
+        "train_loss": 1.8278494214248657,
+        "train_accuracy": 0.32942,
+        "test_loss": 1.751190549659729,
+        "test_accuracy": 0.3591
+      },
+      {
+        "epoch": 4,
+        "train_loss": 1.777223144340515,
+        "train_accuracy": 0.34804,
+        "test_loss": 1.695071665763855,
+        "test_accuracy": 0.3802
+      },
+      {
+        "epoch": 5,
+        "train_loss": 1.7323954935836792,
+        "train_accuracy": 0.36558,
+        "test_loss": 1.6541406240463257,
+        "test_accuracy": 0.3949,
+        "diagonal_gain": 1.0,
+        "clean_accuracy": 0.3949,
+        "adversarial_accuracy": 0.1194,
+        "robustness_gap": 0.2755,
+        "grad_norm_mean": 19.202562633766522,
+        "grad_norm_std": 77.29746444258181,
+        "grad_norm_max": 356.1334779275092,
+        "grad_explode_rate": 0.05,
+        "block_spectral_norm_mean": 1.439620812733968,
+        "block_spectral_norm_max": 2.5874903202056885,
+        "block_spectral_norm_std": 0.5156355872211564,
+        "block_spectral_norms": [
+          2.5874903202056885,
+          1.3128825426101685,
+          1.2079358100891113,
+          1.1799312829971313,
+          1.1653701066970825,
+          1.1841148138046265
+        ]
+      },
+      {
+        "epoch": 6,
+        "train_loss": 1.6951035483551025,
+        "train_accuracy": 0.38012,
+        "test_loss": 1.6243584091186523,
+        "test_accuracy": 0.4111
+      },
+      {
+        "epoch": 7,
+        "train_loss": 1.6562082252883912,
+        "train_accuracy": 0.39284,
+        "test_loss": 1.6055579542160034,
+        "test_accuracy": 0.4097
+      },
+      {
+        "epoch": 8,
+        "train_loss": 1.6307816994476318,
+        "train_accuracy": 0.405,
+        "test_loss": 1.5980958728790282,
+        "test_accuracy": 0.4205
+      },
+      {
+        "epoch": 9,
+        "train_loss": 1.6073687200164795,
+        "train_accuracy": 0.4113,
+        "test_loss": 1.5423785070419311,
+        "test_accuracy": 0.436
+      },
+      {
+        "epoch": 10,
+        "train_loss": 1.5814419058609008,
+        "train_accuracy": 0.42124,
+        "test_loss": 1.5212033159255982,
+        "test_accuracy": 0.4406,
+        "diagonal_gain": 1.0,
+        "clean_accuracy": 0.4406,
+        "adversarial_accuracy": 0.1112,
+        "robustness_gap": 0.3294,
+        "grad_norm_mean": 28.69896975000979,
+        "grad_norm_std": 116.95765119947946,
+        "grad_norm_max": 538.5037715100581,
+        "grad_explode_rate": 0.05,
+        "block_spectral_norm_mean": 1.624798556168874,
+        "block_spectral_norm_max": 3.0995264053344727,
+        "block_spectral_norm_std": 0.6603778065232243,
+        "block_spectral_norms": [
+          3.0995264053344727,
+          1.3898850679397583,
+          1.329944372177124,
+          1.344482660293579,
+          1.3023381233215332,
+          1.2826147079467773
+        ]
+      },
+      {
+        "epoch": 11,
+        "train_loss": 1.5625847527313232,
+        "train_accuracy": 0.4269,
+        "test_loss": 1.5339689138412476,
+        "test_accuracy": 0.4372
+      },
+      {
+        "epoch": 12,
+        "train_loss": 1.546517248687744,
+        "train_accuracy": 0.43204,
+        "test_loss": 1.5048680969238282,
+        "test_accuracy": 0.4446
+      },
+      {
+        "epoch": 13,
+        "train_loss": 1.5342427982711793,
+        "train_accuracy": 0.43902,
+        "test_loss": 1.5032837802886962,
+        "test_accuracy": 0.4435
+      },
+      {
+        "epoch": 14,
+        "train_loss": 1.5212700469970704,
+        "train_accuracy": 0.44222,
+        "test_loss": 1.4913793224334717,
+        "test_accuracy": 0.4516
+      },
+      {
+        "epoch": 15,
+        "train_loss": 1.5116936128616334,
+        "train_accuracy": 0.44736,
+        "test_loss": 1.4775015384674073,
+        "test_accuracy": 0.4587,
+        "diagonal_gain": 1.0,
+        "clean_accuracy": 0.4587,
+        "adversarial_accuracy": 0.103,
+        "robustness_gap": 0.3557,
+        "grad_norm_mean": 29.660560661859893,
+        "grad_norm_std": 119.59855372594735,
+        "grad_norm_max": 550.9763952299162,
+        "grad_explode_rate": 0.05,
+        "block_spectral_norm_mean": 1.5975844462712605,
+        "block_spectral_norm_max": 2.846370220184326,
+        "block_spectral_norm_std": 0.5613920262424614,
+        "block_spectral_norms": [
+          2.846370220184326,
+          1.2781634330749512,
+          1.2806209325790405,
+          1.419037938117981,
+          1.3418585062026978,
+          1.419455647468567
+        ]
+      },
+      {
+        "epoch": 16,
+        "train_loss": 1.502874136428833,
+        "train_accuracy": 0.44984,
+        "test_loss": 1.4788839334487915,
+        "test_accuracy": 0.4585
+      },
+      {
+        "epoch": 17,
+        "train_loss": 1.5016960818862914,
+        "train_accuracy": 0.4492,
+        "test_loss": 1.4731952362060547,
+        "test_accuracy": 0.458
+      },
+      {
+        "epoch": 18,
+        "train_loss": 1.4911654029464723,
+        "train_accuracy": 0.45442,
+        "test_loss": 1.4644959442138672,
+        "test_accuracy": 0.4609
+      },
+      {
+        "epoch": 19,
+        "train_loss": 1.4921618043518066,
+        "train_accuracy": 0.45306,
+        "test_loss": 1.4653207458496094,
+        "test_accuracy": 0.4605
+      },
+      {
+        "epoch": 20,
+        "train_loss": 1.4902740998077393,
+        "train_accuracy": 0.4533,
+        "test_loss": 1.4621728996276855,
+        "test_accuracy": 0.4611,
+        "diagonal_gain": 1.0,
+        "clean_accuracy": 0.4611,
+        "adversarial_accuracy": 0.1034,
+        "robustness_gap": 0.3577,
+        "grad_norm_mean": 29.807305581266622,
+        "grad_norm_std": 122.70166179147273,
+        "grad_norm_max": 564.6502679332334,
+        "grad_explode_rate": 0.05,
+        "block_spectral_norm_mean": 1.7323466936747234,
+        "block_spectral_norm_max": 3.430755615234375,
+        "block_spectral_norm_std": 0.7611187518478095,
+        "block_spectral_norms": [
+          3.430755615234375,
+          1.3492248058319092,
+          1.3888050317764282,
+          1.496565341949463,
+          1.3645095825195312,
+          1.3642197847366333
+        ]
+      }
+    ]
+  },
+  "median_hard": {
+    "aggregator": "median_hard",
+    "config": {
+      "d_model": 128,
+      "n_heads": 4,
+      "n_layers": 6,
+      "mlp_ratio": 4,
+      "patch_size": 4,
+      "dropout": 0.1,
+      "batch_size": 2048,
+      "epochs": 20,
+      "lr": 0.0003,
+      "weight_decay": 0.05,
+      "grad_clip": 1.0,
+      "measure_every": 5,
+      "pgd_epsilon": 0.03137254901960784,
+      "pgd_alpha": 0.00784313725490196,
+      "pgd_steps": 10,
+      "device": "cuda",
+      "seed": 42
+    },
+    "n_parameters": 1202826,
+    "training_time_seconds": 361.98188757896423,
+    "pre_training_metrics": {
+      "pre_diagonal_gain": 1.0,
+      "pre_identity_error": 0.0
+    },
+    "final_metrics": {
+      "test_loss": 1.4711098447799682,
+      "test_accuracy": 0.4612,
+      "clean_accuracy": 0.4612,
+      "adversarial_accuracy": 0.0994,
+      "robustness_gap": 0.3618,
+      "grad_norm_mean": 30.62738821005281,
+      "grad_norm_std": 126.13781586900545,
+      "grad_norm_max": 580.4483552596661,
+      "grad_explode_rate": 0.05,
+      "block_spectral_norm_mean": 1.7452334364255269,
+      "block_spectral_norm_max": 3.4981234073638916,
+      "block_spectral_norm_std": 0.7854711866631879,
+      "block_spectral_norms": [
+        3.4981234073638916,
+        1.3307764530181885,
+        1.3328654766082764,
+        1.4678210020065308,
+        1.4233548641204834,
+        1.418459415435791
+      ],
+      "final_diagonal_gain": 1.0,
+      "final_identity_error": 0.0
+    },
+    "training_history": [
+      {
+        "epoch": 1,
+        "train_loss": 2.0526955086517336,
+        "train_accuracy": 0.23376,
+        "test_loss": 1.914271183013916,
+        "test_accuracy": 0.2918
+      },
+      {
+        "epoch": 2,
+        "train_loss": 1.8968998316955565,
+        "train_accuracy": 0.29934,
+        "test_loss": 1.8166747213363648,
+        "test_accuracy": 0.3325
+      },
+      {
+        "epoch": 3,
+        "train_loss": 1.8214503048706054,
+        "train_accuracy": 0.33248,
+        "test_loss": 1.7545608505249024,
+        "test_accuracy": 0.3543
+      },
+      {
+        "epoch": 4,
+        "train_loss": 1.7719202840423585,
+        "train_accuracy": 0.351,
+        "test_loss": 1.709015524673462,
+        "test_accuracy": 0.3769
+      },
+      {
+        "epoch": 5,
+        "train_loss": 1.7230219073104858,
+        "train_accuracy": 0.3713,
+        "test_loss": 1.6847295330047607,
+        "test_accuracy": 0.3834,
+        "diagonal_gain": 1.0,
+        "clean_accuracy": 0.3834,
+        "adversarial_accuracy": 0.1168,
+        "robustness_gap": 0.2666,
+        "grad_norm_mean": 21.907269035069273,
+        "grad_norm_std": 83.17497629665382,
+        "grad_norm_max": 384.45629365152814,
+        "grad_explode_rate": 0.05,
+        "block_spectral_norm_mean": 1.546891411145528,
+        "block_spectral_norm_max": 3.2760159969329834,
+        "block_spectral_norm_std": 0.7738048782035718,
+        "block_spectral_norms": [
+          3.2760159969329834,
+          1.2598637342453003,
+          1.2044841051101685,
+          1.1823508739471436,
+          1.175281047821045,
+          1.1833527088165283
+        ]
+      },
+      {
+        "epoch": 6,
+        "train_loss": 1.6890487352371215,
+        "train_accuracy": 0.37936,
+        "test_loss": 1.6398577686309814,
+        "test_accuracy": 0.4006
+      },
+      {
+        "epoch": 7,
+        "train_loss": 1.657821773262024,
+        "train_accuracy": 0.39068,
+        "test_loss": 1.6035921237945556,
+        "test_accuracy": 0.415
+      },
+      {
+        "epoch": 8,
+        "train_loss": 1.6308085581207274,
+        "train_accuracy": 0.40368,
+        "test_loss": 1.6049822973251342,
+        "test_accuracy": 0.4151
+      },
+      {
+        "epoch": 9,
+        "train_loss": 1.6060412716293335,
+        "train_accuracy": 0.4093,
+        "test_loss": 1.5525678533554077,
+        "test_accuracy": 0.4251
+      },
+      {
+        "epoch": 10,
+        "train_loss": 1.5829558520126343,
+        "train_accuracy": 0.42102,
+        "test_loss": 1.5476068950653077,
+        "test_accuracy": 0.4365,
+        "diagonal_gain": 1.0,
+        "clean_accuracy": 0.4365,
+        "adversarial_accuracy": 0.1057,
+        "robustness_gap": 0.3308,
+        "grad_norm_mean": 29.229844086558366,
+        "grad_norm_std": 113.94426071665251,
+        "grad_norm_max": 525.8965436672398,
+        "grad_explode_rate": 0.05,
+        "block_spectral_norm_mean": 1.639222006003062,
+        "block_spectral_norm_max": 3.150134801864624,
+        "block_spectral_norm_std": 0.6774026609485073,
+        "block_spectral_norms": [
+          3.150134801864624,
+          1.4344582557678223,
+          1.3332070112228394,
+          1.332207441329956,
+          1.3058927059173584,
+          1.2794318199157715
+        ]
+      },
+      {
+        "epoch": 11,
+        "train_loss": 1.562625884552002,
+        "train_accuracy": 0.42522,
+        "test_loss": 1.5410448249816895,
+        "test_accuracy": 0.4372
+      },
+      {
+        "epoch": 12,
+        "train_loss": 1.5479287775802613,
+        "train_accuracy": 0.42976,
+        "test_loss": 1.5088637042999267,
+        "test_accuracy": 0.4521
+      },
+      {
+        "epoch": 13,
+        "train_loss": 1.535009995803833,
+        "train_accuracy": 0.4342,
+        "test_loss": 1.504292748260498,
+        "test_accuracy": 0.4463
+      },
+      {
+        "epoch": 14,
+        "train_loss": 1.5240193927764893,
+        "train_accuracy": 0.44102,
+        "test_loss": 1.4899118982315063,
+        "test_accuracy": 0.4524
+      },
+      {
+        "epoch": 15,
+        "train_loss": 1.516071869468689,
+        "train_accuracy": 0.4417,
+        "test_loss": 1.475747926902771,
+        "test_accuracy": 0.4599,
+        "diagonal_gain": 1.0,
+        "clean_accuracy": 0.4599,
+        "adversarial_accuracy": 0.0999,
+        "robustness_gap": 0.36,
+        "grad_norm_mean": 29.958089600431457,
+        "grad_norm_std": 123.51237146265169,
+        "grad_norm_max": 568.3356824442188,
+        "grad_explode_rate": 0.05,
+        "block_spectral_norm_mean": 1.6576181252797444,
+        "block_spectral_norm_max": 3.235102891921997,
+        "block_spectral_norm_std": 0.7068625138724021,
+        "block_spectral_norms": [
+          3.235102891921997,
+          1.313899278640747,
+          1.2880754470825195,
+          1.3692179918289185,
+          1.3158349990844727,
+          1.423578143119812
+        ]
+      },
+      {
+        "epoch": 16,
+        "train_loss": 1.5098944427490235,
+        "train_accuracy": 0.44498,
+        "test_loss": 1.4883002025604248,
+        "test_accuracy": 0.4521
+      },
+      {
+        "epoch": 17,
+        "train_loss": 1.5066270853424073,
+        "train_accuracy": 0.446,
+        "test_loss": 1.4727876289367676,
+        "test_accuracy": 0.4584
+      },
+      {
+        "epoch": 18,
+        "train_loss": 1.495711943435669,
+        "train_accuracy": 0.4504,
+        "test_loss": 1.4691725734710694,
+        "test_accuracy": 0.4598
+      },
+      {
+        "epoch": 19,
+        "train_loss": 1.498933099822998,
+        "train_accuracy": 0.45176,
+        "test_loss": 1.4711098447799682,
+        "test_accuracy": 0.4612
+      },
+      {
+        "epoch": 20,
+        "train_loss": 1.4981804070663451,
+        "train_accuracy": 0.44808,
+        "test_loss": 1.4678595180511476,
+        "test_accuracy": 0.4604,
+        "diagonal_gain": 1.0,
+        "clean_accuracy": 0.4604,
+        "adversarial_accuracy": 0.0976,
+        "robustness_gap": 0.3628,
+        "grad_norm_mean": 30.93158216926604,
+        "grad_norm_std": 127.86807543409321,
+        "grad_norm_max": 588.2948674712309,
+        "grad_explode_rate": 0.05,
+        "block_spectral_norm_mean": 1.683808445930481,
+        "block_spectral_norm_max": 3.170876979827881,
+        "block_spectral_norm_std": 0.6672450790719997,
+        "block_spectral_norms": [
+          3.170876979827881,
+          1.324291467666626,
+          1.3972430229187012,
+          1.4914371967315674,
+          1.335071325302124,
+          1.3839306831359863
+        ]
+      }
+    ]
+  },
+  "standard": {
+    "aggregator": "standard",
+    "config": {
+      "d_model": 128,
+      "n_heads": 4,
+      "n_layers": 6,
+      "mlp_ratio": 4,
+      "patch_size": 4,
+      "dropout": 0.1,
+      "batch_size": 2048,
+      "epochs": 20,
+      "lr": 0.0003,
+      "weight_decay": 0.05,
+      "grad_clip": 1.0,
+      "measure_every": 5,
+      "pgd_epsilon": 0.03137254901960784,
+      "pgd_alpha": 0.00784313725490196,
+      "pgd_steps": 10,
+      "device": "cuda",
+      "seed": 42
+    },
+    "n_parameters": 1202826,
+    "training_time_seconds": 283.0162162780762,
+    "pre_training_metrics": {},
+    "final_metrics": {
+      "test_loss": 1.290783040046692,
+      "test_accuracy": 0.538,
+      "clean_accuracy": 0.538,
+      "adversarial_accuracy": 0.0841,
+      "robustness_gap": 0.4539,
+      "grad_norm_mean": 44.44464800264971,
+      "grad_norm_std": 187.54376077155746,
+      "grad_norm_max": 861.928491360956,
+      "grad_explode_rate": 0.05,
+      "block_spectral_norm_mean": 1.4011844396591187,
+      "block_spectral_norm_max": 2.3437869548797607,
+      "block_spectral_norm_std": 0.42179936996944406,
+      "block_spectral_norms": [
+        2.3437869548797607,
+        1.2123699188232422,
+        1.2267996072769165,
+        1.1980583667755127,
+        1.23396635055542,
+        1.1921254396438599
+      ]
+    },
+    "training_history": [
+      {
+        "epoch": 1,
+        "train_loss": 2.043689944458008,
+        "train_accuracy": 0.23162,
+        "test_loss": 1.9449205474853515,
+        "test_accuracy": 0.2834
+      },
+      {
+        "epoch": 2,
+        "train_loss": 1.9133319605636596,
+        "train_accuracy": 0.28714,
+        "test_loss": 1.8795444599151612,
+        "test_accuracy": 0.3117
+      },
+      {
+        "epoch": 3,
+        "train_loss": 1.824776806564331,
+        "train_accuracy": 0.32064,
+        "test_loss": 1.8053145776748658,
+        "test_accuracy": 0.3345
+      },
+      {
+        "epoch": 4,
+        "train_loss": 1.7563162277984619,
+        "train_accuracy": 0.34768,
+        "test_loss": 1.7352551416397095,
+        "test_accuracy": 0.3661
+      },
+      {
+        "epoch": 5,
+        "train_loss": 1.688279154663086,
+        "train_accuracy": 0.37732,
+        "test_loss": 1.689133314704895,
+        "test_accuracy": 0.3872,
+        "clean_accuracy": 0.3872,
+        "adversarial_accuracy": 0.1077,
+        "robustness_gap": 0.2795,
+        "grad_norm_mean": 16.086109790755426,
+        "grad_norm_std": 64.25853810269537,
+        "grad_norm_max": 296.1811991109923,
+        "grad_explode_rate": 0.05,
+        "block_spectral_norm_mean": 1.2826717297236125,
+        "block_spectral_norm_max": 2.2044804096221924,
+        "block_spectral_norm_std": 0.41304312787888864,
+        "block_spectral_norms": [
+          2.2044804096221924,
+          1.1465178728103638,
+          1.1095490455627441,
+          1.0867253541946411,
+          1.0848751068115234,
+          1.06388258934021
+        ]
+      },
+      {
+        "epoch": 6,
+        "train_loss": 1.6288670457077026,
+        "train_accuracy": 0.40314,
+        "test_loss": 1.6709583267211914,
+        "test_accuracy": 0.394
+      },
+      {
+        "epoch": 7,
+        "train_loss": 1.5773338591384887,
+        "train_accuracy": 0.42552,
+        "test_loss": 1.582368187522888,
+        "test_accuracy": 0.4339
+      },
+      {
+        "epoch": 8,
+        "train_loss": 1.5263540298461915,
+        "train_accuracy": 0.44576,
+        "test_loss": 1.4895358934402465,
+        "test_accuracy": 0.4612
+      },
+      {
+        "epoch": 9,
+        "train_loss": 1.4663167624664306,
+        "train_accuracy": 0.46992,
+        "test_loss": 1.4829953224182129,
+        "test_accuracy": 0.4689
+      },
+      {
+        "epoch": 10,
+        "train_loss": 1.433068503265381,
+        "train_accuracy": 0.4824,
+        "test_loss": 1.4849002042770385,
+        "test_accuracy": 0.4652,
+        "clean_accuracy": 0.4652,
+        "adversarial_accuracy": 0.087,
+        "robustness_gap": 0.3782,
+        "grad_norm_mean": 31.066952102956854,
+        "grad_norm_std": 122.73200017449125,
+        "grad_norm_max": 566.0418683015,
+        "grad_explode_rate": 0.05,
+        "block_spectral_norm_mean": 1.5396591623624165,
+        "block_spectral_norm_max": 3.2342379093170166,
+        "block_spectral_norm_std": 0.7581612481339431,
+        "block_spectral_norms": [
+          3.2342379093170166,
+          1.242923378944397,
+          1.2041219472885132,
+          1.1782965660095215,
+          1.2028406858444214,
+          1.1755344867706299
+        ]
+      },
+      {
+        "epoch": 11,
+        "train_loss": 1.3973830292510987,
+        "train_accuracy": 0.496,
+        "test_loss": 1.423125616455078,
+        "test_accuracy": 0.4889
+      },
+      {
+        "epoch": 12,
+        "train_loss": 1.361756544532776,
+        "train_accuracy": 0.51148,
+        "test_loss": 1.3529354568481444,
+        "test_accuracy": 0.5137
+      },
+      {
+        "epoch": 13,
+        "train_loss": 1.3409995066833496,
+        "train_accuracy": 0.51778,
+        "test_loss": 1.3357759099960327,
+        "test_accuracy": 0.5238
+      },
+      {
+        "epoch": 14,
+        "train_loss": 1.3274425917816162,
+        "train_accuracy": 0.52234,
+        "test_loss": 1.343134977722168,
+        "test_accuracy": 0.5205
+      },
+      {
+        "epoch": 15,
+        "train_loss": 1.307498945541382,
+        "train_accuracy": 0.53002,
+        "test_loss": 1.335012746810913,
+        "test_accuracy": 0.5209,
+        "clean_accuracy": 0.5209,
+        "adversarial_accuracy": 0.0826,
+        "robustness_gap": 0.4383,
+        "grad_norm_mean": 40.594103392572215,
+        "grad_norm_std": 167.22239961974742,
+        "grad_norm_max": 769.4985616819621,
+        "grad_explode_rate": 0.05,
+        "block_spectral_norm_mean": 1.3693642616271973,
+        "block_spectral_norm_max": 2.231421709060669,
+        "block_spectral_norm_std": 0.38585759943260584,
+        "block_spectral_norms": [
+          2.231421709060669,
+          1.1958343982696533,
+          1.1969504356384277,
+          1.171136736869812,
+          1.226457953453064,
+          1.1943843364715576
+        ]
+      },
+      {
+        "epoch": 16,
+        "train_loss": 1.294397002067566,
+        "train_accuracy": 0.53398,
+        "test_loss": 1.328493678665161,
+        "test_accuracy": 0.5268
+      },
+      {
+        "epoch": 17,
+        "train_loss": 1.285778441619873,
+        "train_accuracy": 0.53598,
+        "test_loss": 1.2972000680923461,
+        "test_accuracy": 0.5373
+      },
+      {
+        "epoch": 18,
+        "train_loss": 1.2773814203262328,
+        "train_accuracy": 0.54292,
+        "test_loss": 1.3063148012161254,
+        "test_accuracy": 0.5323
+      },
+      {
+        "epoch": 19,
+        "train_loss": 1.276883217048645,
+        "train_accuracy": 0.53932,
+        "test_loss": 1.302732455253601,
+        "test_accuracy": 0.5345
+      },
+      {
+        "epoch": 20,
+        "train_loss": 1.2716525045013427,
+        "train_accuracy": 0.54142,
+        "test_loss": 1.290783040046692,
+        "test_accuracy": 0.538,
+        "clean_accuracy": 0.538,
+        "adversarial_accuracy": 0.084,
+        "robustness_gap": 0.454,
+        "grad_norm_mean": 44.41107001372019,
+        "grad_norm_std": 187.37540646380603,
+        "grad_norm_max": 861.1612315015735,
+        "grad_explode_rate": 0.05,
+        "block_spectral_norm_mean": 1.391164223353068,
+        "block_spectral_norm_max": 2.269371509552002,
+        "block_spectral_norm_std": 0.39322941237627684,
+        "block_spectral_norms": [
+          2.269371509552002,
+          1.2427434921264648,
+          1.2217928171157837,
+          1.1906293630599976,
+          1.2317382097244263,
+          1.1907099485397339
+        ]
+      }
+    ]
+  }
+}
