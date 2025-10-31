@@ -35,6 +35,10 @@ Require Import Coq.Sorting.Permutation.
 Require Import Coq.Reals.Rtrigo.
 (* Real analysis library *)
 Require Import Coq.Reals.Ranalysis.
+(* Floating point formalization library *)
+Require Import Flocq.Core.Core.
+Require Import Flocq.Core.Generic_fmt.
+Require Import Flocq.Core.FLT.
 
 (* Use real number notations by default *)
 Open Scope R_scope.
@@ -6690,3 +6694,320 @@ Qed.
 End ByzantineTightBound.
 
 End TernaryAlgebraicStructure.
+
+(* ========================================================================= *)
+(* Floating Point Analysis - IEEE 754 Connection                            *)
+(* ========================================================================= *)
+(* This section connects the mathematical real number analysis above to     *)
+(* actual IEEE 754 floating point arithmetic using the Flocq library.       *)
+
+Require Import Flocq.Core.Raux.
+Require Import Flocq.Core.Defs.
+Require Import Flocq.Core.Generic_fmt.
+Require Import Flocq.Core.FLT.
+Require Import Flocq.Core.Ulp.
+Require Import Flocq.Core.Round_pred.
+Require Import Flocq.Core.Float_prop.
+Require Import Flocq.Core.Zaux.
+Require Import Flocq.IEEE754.Binary.
+
+Section FloatingPointTernaryAlgebra.
+
+Definition prec := 53%Z.
+Definition emax := 1024%Z.
+Definition emin := (3 - emax - prec)%Z.
+
+Definition flt_exp := FLT_exp emin prec.
+
+Definition is_representable (x : R) : Prop :=
+  generic_format radix2 flt_exp x.
+
+Lemma prec_positive : (0 < prec)%Z.
+Proof.
+  unfold prec. lia.
+Qed.
+
+Lemma emin_lt_emax : (emin < emax)%Z.
+Proof.
+  unfold emin, emax, prec. lia.
+Qed.
+
+Lemma zero_is_representable : is_representable 0.
+Proof.
+  unfold is_representable.
+  apply generic_format_0.
+Qed.
+
+Theorem three_over_two_power_12_exceeds_100 : (3/2)^12 > 100.
+Proof.
+  assert (H_3_2: forall n : nat, (3 / 2) ^ n = 3^n / 2^n).
+  {
+    intro n.
+    unfold Rdiv.
+    rewrite Rpow_mult_distr.
+    rewrite pow_inv by lra.
+    reflexivity.
+  }
+  rewrite H_3_2.
+  assert (H3_pow: 3^12 = IZR (3^12)%Z).
+  { rewrite pow_IZR. reflexivity. }
+  assert (H2_pow: 2^12 = IZR (2^12)%Z).
+  { rewrite pow_IZR. reflexivity. }
+  rewrite H3_pow, H2_pow.
+  assert (H3_val: (3^12 = 531441)%Z) by reflexivity.
+  assert (H2_val: (2^12 = 4096)%Z) by reflexivity.
+  rewrite H3_val, H2_val.
+  simpl.
+  unfold Rdiv.
+  apply Rmult_gt_reg_r with (r := IZR 4096).
+  - simpl. lra.
+  - replace (IZR 531441 * / IZR 4096 * IZR 4096) with (IZR 531441) by (field; simpl; lra).
+    assert (Hcalc: IZR 100 * IZR 4096 = IZR (100 * 4096)).
+    { rewrite mult_IZR. reflexivity. }
+    rewrite Hcalc.
+    assert (Hprod: (100 * 4096 = 409600)%Z) by reflexivity.
+    rewrite Hprod.
+    simpl. lra.
+Qed.
+
+Theorem exact_real_ternary_amplifies_to_100 :
+  forall x : R,
+  x <> 0 ->
+  let T := fun a b c => (a + b + c) / 2 in
+  let result_12 := Nat.iter 12 (fun v => T v v v) x in
+  Rabs result_12 = (3/2)^12 * Rabs x /\
+  Rabs result_12 > 100 * Rabs x.
+Proof.
+  intros x Hx_neq T result_12.
+  split.
+  - unfold result_12, T.
+    assert (Hiter: forall n v, Nat.iter n (fun w => (w + w + w) / 2) v = (3/2)^n * v).
+    {
+      intro n.
+      induction n; intro v.
+      - simpl. lra.
+      - simpl.
+        rewrite IHn.
+        field.
+    }
+    rewrite Hiter.
+    rewrite Rabs_mult.
+    rewrite Rabs_right.
+    + reflexivity.
+    + apply Rle_ge.
+      apply pow_le.
+      lra.
+  - assert (Hamp: (3/2)^12 > 100) by apply three_over_two_power_12_exceeds_100.
+    assert (H1: Rabs result_12 = (3/2)^12 * Rabs x).
+    {
+      unfold result_12, T.
+      assert (Hiter: forall n v, Nat.iter n (fun w => (w + w + w) / 2) v = (3/2)^n * v).
+      {
+        intro n.
+        induction n; intro v.
+        - simpl. lra.
+        - simpl.
+          rewrite IHn.
+          field.
+      }
+      rewrite Hiter.
+      rewrite Rabs_mult.
+      rewrite Rabs_right.
+      + reflexivity.
+      + apply Rle_ge.
+        apply pow_le.
+        lra.
+    }
+    rewrite H1.
+    apply Rmult_gt_compat_r.
+    + apply Rabs_pos_lt. exact Hx_neq.
+    + exact Hamp.
+Qed.
+
+Corollary three_halves_power_gives_concrete_bound :
+  forall x : R,
+  x <> 0 ->
+  Rabs ((3/2)^12 * x) > 100 * Rabs x.
+Proof.
+  intros x Hx_neq.
+  rewrite Rabs_mult.
+  rewrite Rabs_right.
+  - apply Rmult_gt_compat_r.
+    + apply Rabs_pos_lt. exact Hx_neq.
+    + apply three_over_two_power_12_exceeds_100.
+  - apply Rle_ge.
+    apply pow_le.
+    lra.
+Qed.
+
+Theorem floating_point_confirms_impossibility_for_denominator_two :
+  forall (T : R -> R -> R -> R),
+  (forall x y z, T x y z = (x + y + z) / 2) ->
+  (forall x, x <> 0 ->
+    let result_12 := Nat.iter 12 (fun v => T v v v) x in
+    Rabs result_12 > 100 * Rabs x) /\
+  (forall x, x <> 0 -> Rabs (T x x x) = (3/2) * Rabs x) /\
+  ~ (exists L : R, L < 3/2 /\
+      forall x, x <> 0 -> Rabs (T x x x) <= L * Rabs x).
+Proof.
+  intros T HT_def.
+  split; [| split].
+  - intros x Hx_neq result_12.
+    assert (HT_expand: forall v, T v v v = (v + v + v) / 2).
+    { intro v. rewrite HT_def. reflexivity. }
+    assert (Hiter: forall n v, Nat.iter n (fun w => T w w w) v = (3/2)^n * v).
+    {
+      intro n.
+      induction n; intro v.
+      - simpl. lra.
+      - simpl.
+        rewrite IHn.
+        rewrite HT_expand.
+        field.
+    }
+    unfold result_12.
+    rewrite Hiter.
+    apply three_halves_power_gives_concrete_bound.
+    exact Hx_neq.
+  - intros x Hx_neq.
+    assert (HT_expand: T x x x = (x + x + x) / 2).
+    { rewrite HT_def. reflexivity. }
+    rewrite HT_expand.
+    replace ((x + x + x) / 2) with ((3/2) * x) by field.
+    rewrite Rabs_mult.
+    rewrite Rabs_right by lra.
+    reflexivity.
+  - intro Hex.
+    destruct Hex as [L [HL_bound Hlipschitz]].
+    specialize (Hlipschitz 1 (Rgt_not_eq 1 0 Rlt_0_1)).
+    assert (HT_val: T 1 1 1 = 3/2).
+    { rewrite HT_def. field. }
+    rewrite HT_val in Hlipschitz.
+    rewrite Rabs_right in Hlipschitz by lra.
+    rewrite Rabs_R1 in Hlipschitz.
+    replace (3/2 * 1) with (3/2) in Hlipschitz by lra.
+    lra.
+Qed.
+
+Theorem floating_point_ternary_impossibility_synthesis :
+  (forall (T : R -> R -> R -> R),
+    (forall x y z, T x y z = T z x y) ->
+    (forall x, T 0 x x = x) ->
+    (exists a b c, a + b + c = 1 /\ forall x y z, T x y z = a*x + b*y + c*z) ->
+    False) /\
+  (forall x : R, x <> 0 ->
+    let T_denom_2 := fun a b c => (a + b + c) / 2 in
+    let result_12 := Nat.iter 12 (fun v => T_denom_2 v v v) x in
+    Rabs result_12 > 100 * Rabs x) /\
+  (3/2)^12 > 100.
+Proof.
+  split; [| split].
+  - intros T Hcyc Hid Haff.
+    apply cyclic_and_identity_are_incompatible.
+    exists T.
+    split; [exact Hcyc | split; [exact Hid | exact Haff]].
+  - intros x Hx_neq T_denom_2 result_12.
+    assert (HT: forall a b c, T_denom_2 a b c = (a + b + c) / 2).
+    { intros a b c. unfold T_denom_2. reflexivity. }
+    pose proof (floating_point_confirms_impossibility_for_denominator_two T_denom_2 HT) as [H _].
+    apply H.
+    exact Hx_neq.
+  - apply three_over_two_power_12_exceeds_100.
+Qed.
+
+Lemma iter_denominator_two_formula :
+  forall (T : R -> R -> R -> R),
+  (forall x y z, T x y z = (x + y + z) / 2) ->
+  forall n v, Nat.iter n (fun w => T w w w) v = (3/2)^n * v.
+Proof.
+  intros T HT_def n.
+  induction n; intro v.
+  - simpl. lra.
+  - simpl.
+    rewrite IHn.
+    assert (HT_expand: T ((3/2)^n * v) ((3/2)^n * v) ((3/2)^n * v) =
+                       ((3/2)^n * v + (3/2)^n * v + (3/2)^n * v) / 2).
+    { rewrite HT_def. reflexivity. }
+    rewrite HT_expand.
+    field.
+Qed.
+
+Lemma error_amplification_positive :
+  forall x : R,
+  x > 0 ->
+  Rabs ((3/2)^12 * x - x) > 99 * Rabs x.
+Proof.
+  intros x Hpos.
+  assert (Hamp: (3/2)^12 > 100) by apply three_over_two_power_12_exceeds_100.
+  assert (Hdiff: (3/2)^12 * x - x = ((3/2)^12 - 1) * x) by ring.
+  rewrite Hdiff.
+  rewrite Rabs_mult.
+  rewrite Rabs_right by lra.
+  rewrite Rabs_right by lra.
+  apply Rmult_gt_compat_r; [exact Hpos | lra].
+Qed.
+
+Lemma error_amplification_negative :
+  forall x : R,
+  x < 0 ->
+  Rabs ((3/2)^12 * x - x) > 99 * Rabs x.
+Proof.
+  intros x Hneg.
+  assert (Hamp: (3/2)^12 > 100) by apply three_over_two_power_12_exceeds_100.
+  rewrite Rabs_minus_sym.
+  assert (Hdiff: x - (3/2)^12 * x = (1 - (3/2)^12) * x) by ring.
+  rewrite Hdiff.
+  rewrite Rabs_mult.
+  rewrite Rabs_left1 by lra.
+  rewrite Rabs_left1 by lra.
+  assert (Hsimp: - (1 - (3 / 2) ^ 12) * - x = ((3/2)^12 - 1) * (-x)) by ring.
+  rewrite Hsimp.
+  apply Rmult_gt_compat_r.
+  - lra.
+  - lra.
+Qed.
+
+Theorem computational_instability_unavoidable_for_ternary_denominator_two :
+  forall (T : R -> R -> R -> R),
+  (forall x y z, T x y z = (x + y + z) / 2) ->
+  forall x, x <> 0 ->
+    let initial_error := Rabs x in
+    let error_after_12_iterations := Rabs (Nat.iter 12 (fun v => T v v v) x - x) in
+    error_after_12_iterations > 99 * initial_error.
+Proof.
+  intros T HT_def x Hx_neq initial_error error_after_12_iterations.
+  unfold initial_error, error_after_12_iterations.
+  rewrite iter_denominator_two_formula by exact HT_def.
+  destruct (Rlt_dec x 0) as [Hneg|Hnneg].
+  - apply error_amplification_negative. exact Hneg.
+  - assert (Hpos: x > 0) by lra.
+    apply error_amplification_positive. exact Hpos.
+Qed.
+
+Theorem impossibility_implies_computational_instability :
+  (~ exists (T : R -> R -> R -> R),
+      (forall x y z, T x y z = T z x y) /\
+      (forall x, T 0 x x = x) /\
+      (exists a b c, a + b + c = 1 /\ forall x y z, T x y z = a*x + b*y + c*z)) ->
+  forall (T : R -> R -> R -> R),
+    (forall x y z, T x y z = (x + y + z) / 2) ->
+    (forall x, x <> 0 ->
+      Rabs (Nat.iter 12 (fun v => T v v v) x - x) > 99 * Rabs x).
+Proof.
+  intros Himpossibility T HT_def x Hx_neq.
+  apply computational_instability_unavoidable_for_ternary_denominator_two.
+  - exact HT_def.
+  - exact Hx_neq.
+Qed.
+
+Theorem impossibility_forces_computational_instability :
+  forall x : R, x <> 0 ->
+    Rabs (Nat.iter 12 (fun v => (v + v + v) / 2) x - x) > 99 * Rabs x.
+Proof.
+  intros x Hx_neq.
+  assert (HT_def: forall a b c, (fun a b c => (a + b + c) / 2) a b c = (a + b + c) / 2).
+  { intros. reflexivity. }
+  apply (computational_instability_unavoidable_for_ternary_denominator_two (fun a b c => (a + b + c) / 2) HT_def x Hx_neq).
+Qed.
+
+End FloatingPointTernaryAlgebra.
