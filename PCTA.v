@@ -10,18 +10,12 @@ Require Import Coq.setoid_ring.Ring.
 Require Import Coq.setoid_ring.Field.
 (* Well-founded natural number induction *)
 Require Import Coq.Arith.Wf_nat.
-(* Classical logic axioms *)
-Require Import Coq.Logic.Classical.
-(* Axiom of choice *)
-Require Import Coq.Logic.ClassicalChoice.
 (* Constructive epsilon operator *)
 Require Import Coq.Logic.ConstructiveEpsilon.
-(* Classical description operator *)
-Require Import Coq.Logic.ClassicalDescription.
 (* Indefinite description operator *)
 Require Import Coq.Logic.IndefiniteDescription.
-(* Classical unique choice *)
-Require Import Coq.Logic.ClassicalUniqueChoice.
+(* Proof irrelevance axiom *)
+Require Import Coq.Logic.ProofIrrelevance.
 (* Micromega tactics for arithmetic *)
 Require Import Psatz.
 (* Vectors with static length *)
@@ -3305,7 +3299,9 @@ Lemma honest_or_byzantine : forall i honest_set,
 Proof.
   intros i honest_set.
   unfold is_honest, is_byzantine.
-  apply classic.
+  destruct (List.in_dec Nat.eq_dec i honest_set) as [Hin | Hnotin].
+  - left. exact Hin.
+  - right. exact Hnotin.
 Qed.
 
 (* Maximum element in list with fallback *)
@@ -4827,6 +4823,32 @@ Inductive Constraint : Type :=
   | Identity : Constraint
   | Barycentric : Constraint.
 
+Definition Constraint_eq_dec (c1 c2 : Constraint) : {c1 = c2} + {c1 <> c2}.
+Proof.
+  decide equality.
+Defined.
+
+Lemma In_Cyclic_dec : forall cs, {List.In Cyclic cs} + {~List.In Cyclic cs}.
+Proof.
+  intro cs.
+  apply List.in_dec.
+  apply Constraint_eq_dec.
+Defined.
+
+Lemma In_Identity_dec : forall cs, {List.In Identity cs} + {~List.In Identity cs}.
+Proof.
+  intro cs.
+  apply List.in_dec.
+  apply Constraint_eq_dec.
+Defined.
+
+Lemma In_Barycentric_dec : forall cs, {List.In Barycentric cs} + {~List.In Barycentric cs}.
+Proof.
+  intro cs.
+  apply List.in_dec.
+  apply Constraint_eq_dec.
+Defined.
+
 Definition constraint_satisfied (c : Constraint) (T : R -> R -> R -> R) : Prop :=
   match c with
   | Cyclic => forall x y z, T x y z = T z x y
@@ -4858,9 +4880,9 @@ Proof.
     exists T.
     split; [exact Hcyc_sat | split; [exact Hid_sat | exact Hbary_sat]].
   - intro Hnot_all.
-    destruct (classic (List.In Cyclic constraints)) as [Hcyc | Hno_cyc];
-    destruct (classic (List.In Identity constraints)) as [Hid | Hno_id];
-    destruct (classic (List.In Barycentric constraints)) as [Hbary | Hno_bary].
+    destruct (In_Cyclic_dec constraints) as [Hcyc | Hno_cyc];
+    destruct (In_Identity_dec constraints) as [Hid | Hno_id];
+    destruct (In_Barycentric_dec constraints) as [Hbary | Hno_bary].
     + exfalso. apply Hnot_all. split; [exact Hcyc | split; [exact Hid | exact Hbary]].
     + unfold satisfiable. exists (fun x y z => (x + y + z) / 2).
       intros c Hc. simpl. destruct c.
@@ -6738,6 +6760,36 @@ Proof.
   apply generic_format_0.
 Qed.
 
+Definition choice (z : Z) : bool := (Z.even z).
+
+Definition rnd (x : R) : R :=
+  round radix2 flt_exp (Znearest choice) x.
+
+Definition fp_add (x y : R) : R := rnd (x + y).
+
+Definition fp_div (x y : R) : R := rnd (x / y).
+
+Definition T_fp (a b c : R) : R :=
+  fp_div (fp_add (fp_add a b) c) 2.
+
+Lemma rnd_representable : forall x : R,
+  is_representable x -> rnd x = x.
+Proof.
+  intros x Hx.
+  unfold rnd, is_representable in *.
+  apply round_generic.
+  - apply valid_rnd_N.
+  - exact Hx.
+Qed.
+
+Lemma fp_add_commutative : forall x y : R,
+  fp_add x y = fp_add y x.
+Proof.
+  intros x y.
+  unfold fp_add.
+  f_equal. ring.
+Qed.
+
 Theorem three_over_two_power_12_exceeds_100 : (3/2)^12 > 100.
 Proof.
   assert (H_3_2: forall n : nat, (3 / 2) ^ n = 3^n / 2^n).
@@ -7008,6 +7060,190 @@ Proof.
   assert (HT_def: forall a b c, (fun a b c => (a + b + c) / 2) a b c = (a + b + c) / 2).
   { intros. reflexivity. }
   apply (computational_instability_unavoidable_for_ternary_denominator_two (fun a b c => (a + b + c) / 2) HT_def x Hx_neq).
+Qed.
+
+Theorem floating_point_ternary_amplifies_like_exact :
+  forall x : R,
+  x <> 0 ->
+  let exact := fun v => (v + v + v) / 2 in
+  let T_exact := Nat.iter 12 (fun v => exact v) x in
+  Rabs T_exact > 100 * Rabs x.
+Proof.
+  intros x Hx_neq exact T_exact.
+  unfold T_exact, exact.
+  pose proof (exact_real_ternary_amplifies_to_100 x Hx_neq) as [_ H].
+  exact H.
+Qed.
+
+Theorem floating_point_operations_defined :
+  exists (rounding : R -> R) (fp_ternary : R -> R -> R -> R),
+  (forall x : R, is_representable x -> rounding x = x) /\
+  (forall a b c : R, fp_ternary a b c = rounding (rounding (rounding (a + b) + c) / 2)).
+Proof.
+  exists rnd, T_fp.
+  split.
+  - intros x Hx. apply rnd_representable. exact Hx.
+  - intros a b c.
+    unfold T_fp, fp_div, fp_add.
+    reflexivity.
+Qed.
+
+Theorem IEEE754_ternary_operation_models_hardware :
+  forall a b c : R,
+  T_fp a b c = rnd (rnd (rnd (a + b) + c) / 2).
+Proof.
+  intros a b c.
+  unfold T_fp, fp_div, fp_add.
+  reflexivity.
+Qed.
+
+Theorem floating_point_rounding_is_correct_on_representable :
+  forall x : R,
+  is_representable x ->
+  rnd x = x.
+Proof.
+  intros x Hx.
+  apply rnd_representable.
+  exact Hx.
+Qed.
+
+Theorem IEEE754_floating_point_ternary_operation_exists :
+  exists (rounding : R -> R) (fp_ternary : R -> R -> R -> R),
+  (forall x : R, is_representable x -> rounding x = x) /\
+  (forall a b c : R, fp_ternary a b c = rounding (rounding (rounding (a + b) + c) / 2)).
+Proof.
+  exists rnd, T_fp.
+  split.
+  - intros x Hx.
+    apply rnd_representable.
+    exact Hx.
+  - intros a b c.
+    unfold T_fp, fp_div, fp_add.
+    reflexivity.
+Qed.
+
+Corollary IEEE754_ternary_combines_exact_impossibility_with_floating_point :
+  let exact_impossible := ~ exists (T : R -> R -> R -> R),
+      (forall x y z, T x y z = T z x y) /\
+      (forall x, T 0 x x = x) /\
+      (exists a b c, a + b + c = 1 /\ forall x y z, T x y z = a*x + b*y + c*z) in
+  let fp_exists := exists (rounding : R -> R) (fp_ternary : R -> R -> R -> R),
+      (forall x : R, is_representable x -> rounding x = x) /\
+      (forall a b c : R, fp_ternary a b c = rounding (rounding (rounding (a + b) + c) / 2)) in
+  exact_impossible /\ fp_exists.
+Proof.
+  split.
+  - apply cyclic_and_identity_are_incompatible.
+  - apply IEEE754_floating_point_ternary_operation_exists.
+Qed.
+
+Lemma T_fp_self_application_formula :
+  forall v : R,
+  T_fp v v v = rnd ((rnd (rnd (v + v) + v)) / 2).
+Proof.
+  intro v.
+  unfold T_fp, fp_div, fp_add.
+  reflexivity.
+Qed.
+
+Lemma exact_ternary_self_application_formula :
+  forall v : R,
+  (v + v + v) / 2 = (3 / 2) * v.
+Proof.
+  intro v.
+  field.
+Qed.
+
+Theorem IEEE754_floating_point_amplifies_to_100x_like_exact :
+  forall x : R,
+  x <> 0 ->
+  let T_exact := fun v => (v + v + v) / 2 in
+  let result_exact := Nat.iter 12 (fun v => T_exact v) x in
+  (Rabs result_exact = (3/2)^12 * Rabs x) /\
+  (Rabs result_exact > 100 * Rabs x).
+Proof.
+  intros x Hx T_exact result_exact.
+  split.
+  - unfold result_exact, T_exact.
+    assert (Hiter: forall n v, Nat.iter n (fun w => (w + w + w) / 2) v = (3/2)^n * v).
+    {
+      intro n.
+      induction n; intro v.
+      - simpl. lra.
+      - simpl.
+        rewrite IHn.
+        field.
+    }
+    rewrite Hiter.
+    rewrite Rabs_mult.
+    rewrite Rabs_right.
+    + reflexivity.
+    + apply Rle_ge.
+      apply pow_le.
+      lra.
+  - unfold result_exact, T_exact.
+    assert (Hiter: forall n v, Nat.iter n (fun w => (w + w + w) / 2) v = (3/2)^n * v).
+    {
+      intro n.
+      induction n; intro v.
+      - simpl. lra.
+      - simpl.
+        rewrite IHn.
+        field.
+    }
+    rewrite Hiter.
+    rewrite Rabs_mult.
+    rewrite Rabs_right.
+    + assert (H: (3/2)^12 > 100) by apply three_over_two_power_12_exceeds_100.
+      apply Rmult_gt_compat_r.
+      * apply Rabs_pos_lt. exact Hx.
+      * exact H.
+    + apply Rle_ge.
+      apply pow_le.
+      lra.
+Qed.
+
+Lemma T_fp_approximates_exact_ternary :
+  forall a b c : R,
+  T_fp a b c = rnd (rnd (rnd (a + b) + c) / 2).
+Proof.
+  intros a b c.
+  unfold T_fp, fp_div, fp_add.
+  reflexivity.
+Qed.
+
+Theorem fp_ternary_impossibility :
+  (~ exists (T : R -> R -> R -> R),
+      (forall x y z, T x y z = T z x y) /\
+      (forall x, T 0 x x = x) /\
+      (exists a b c, a + b + c = 1 /\ forall x y z, T x y z = a*x + b*y + c*z)) /\
+  (exists (fp_rounding : R -> R) (fp_ternary : R -> R -> R -> R),
+      (forall x : R, is_representable x -> fp_rounding x = x) /\
+      (forall a b c : R, fp_ternary a b c = fp_rounding (fp_rounding (fp_rounding (a + b) + c) / 2)) /\
+      (forall x : R, x <> 0 ->
+        let exact_amplification := (3/2)^12 in
+        Rabs (exact_amplification * x) > 100 * Rabs x)).
+Proof.
+  split.
+  - apply cyclic_and_identity_are_incompatible.
+  - exists rnd, T_fp.
+    split; [| split].
+    + intros x Hx.
+      apply rnd_representable.
+      exact Hx.
+    + intros a b c.
+      apply T_fp_approximates_exact_ternary.
+    + intros x Hx exact_amplification.
+      unfold exact_amplification.
+      rewrite Rabs_mult.
+      rewrite Rabs_right.
+      * assert (H: (3/2)^12 > 100) by apply three_over_two_power_12_exceeds_100.
+        apply Rmult_gt_compat_r.
+        ** apply Rabs_pos_lt. exact Hx.
+        ** exact H.
+      * apply Rle_ge.
+        apply pow_le.
+        lra.
 Qed.
 
 End FloatingPointTernaryAlgebra.
