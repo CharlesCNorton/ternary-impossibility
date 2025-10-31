@@ -3596,6 +3596,71 @@ Proof.
   lra.
 Qed.
 
+Lemma fold_combine_repeat_one : forall m weights,
+  length weights = m ->
+  fold_right Rplus 0 (map (fun '(w, v) => w * v) (combine weights (List.repeat 1 m))) =
+  fold_right Rplus 0 weights.
+Proof.
+  intro m.
+  induction m; intros weights Hlen.
+  - destruct weights; try discriminate. simpl. reflexivity.
+  - destruct weights as [|w ws]; try discriminate.
+    simpl. rewrite IHm by (simpl in Hlen; lia).
+    lra.
+Qed.
+
+Theorem nary_identity_forces_first_weight_zero :
+  forall n : nat,
+  (n >= 4)%nat ->
+  forall (weights : list R),
+  length weights = n ->
+  fold_right Rplus 0 weights = 1 ->
+  (forall x : R,
+    fold_right Rplus 0 (map (fun '(w, v) => w * v) (combine weights (List.cons 0 (List.repeat x (n - 1))))) = x) ->
+  exists w_rest : list R, weights = List.cons 0 w_rest /\ length w_rest = (n - 1)%nat /\ fold_right Rplus 0 w_rest = 1.
+Proof.
+  intros n Hn weights Hlen Hsum Hid.
+  destruct weights as [|w0 w_rest].
+  - simpl in Hlen. lia.
+  - exists w_rest.
+    split.
+    + assert (Hw0: w0 = 0).
+      { specialize (Hid 1).
+        simpl in Hid.
+        rewrite fold_combine_repeat_one in Hid by (simpl in Hlen; lia).
+        simpl in Hsum.
+        lra. }
+      rewrite Hw0. reflexivity.
+    + split.
+      * simpl in Hlen. lia.
+      * simpl in Hsum.
+        assert (Hw0: w0 = 0).
+        { specialize (Hid 1).
+          simpl in Hid.
+          rewrite fold_combine_repeat_one in Hid by (simpl in Hlen; lia).
+          simpl in Hsum. lra. }
+        lra.
+Qed.
+
+Corollary nary_identity_makes_protocol_ignore_first_input :
+  forall n : nat,
+  (n >= 4)%nat ->
+  forall (weights : list R),
+  length weights = n ->
+  fold_right Rplus 0 weights = 1 ->
+  (forall x, fold_right Rplus 0 (map (fun '(w, v) => w * v) (combine weights (List.cons 0 (List.repeat x (n - 1))))) = x) ->
+  forall inputs, length inputs = n ->
+  fold_right Rplus 0 (map (fun '(w, v) => w * v) (combine weights inputs)) =
+  fold_right Rplus 0 (map (fun '(w, v) => w * v) (combine weights (List.cons 0 (List.tl inputs)))).
+Proof.
+  intros n Hn weights Hlen Hsum Hid inputs Hlen_inputs.
+  destruct (nary_identity_forces_first_weight_zero n Hn weights Hlen Hsum Hid) as [w_rest [Hweights [Hlen_rest Hsum_rest]]].
+  rewrite Hweights.
+  destruct inputs as [|i0 irest].
+  - simpl in Hlen_inputs. lia.
+  - simpl. assert (H: 0 * i0 = 0 * 0) by ring. rewrite H. reflexivity.
+Qed.
+
 End ByzantineThresholdTheorem.
 
 Section RVecCoherenceAnalysis.
