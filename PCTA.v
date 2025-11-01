@@ -8190,4 +8190,890 @@ Definition hilbert_distance (x y : list R) : R :=
 
 Notation "'d_H' ( x , y )" := (hilbert_distance x y) (at level 50).
 
+Definition positive_orthant (x : list R) : Prop :=
+  forall i, (i < length x)%nat -> nth i x 0 > 0.
+
+Definition same_dim (x y : list R) : Prop :=
+  length x = length y.
+
+Definition in_pos_orthant (x : list R) : Prop :=
+  forall i, (i < length x)%nat -> nth i x 0 > 0.
+
+Definition uniform_contraction (T : list R -> list R) (kappa : R) : Prop :=
+  kappa < 1 /\
+  forall x y, same_dim x y -> in_pos_orthant x -> in_pos_orthant y ->
+    in_pos_orthant (T x) /\ in_pos_orthant (T y) /\
+    d_H(T x, T y) <= kappa * d_H(x, y).
+
+Definition nonexpansive (T : list R -> list R) : Prop :=
+  forall x y, positive_orthant x -> positive_orthant y ->
+    d_H(T x, T y) <= d_H(x, y).
+
+Definition ternary_barycentric_map (T : list R -> list R) (a b c : R) : Prop :=
+  a + b + c = 1 /\
+  forall x y z, T [x; y; z] = [a*x + b*y + c*z; a*y + b*z + c*x; a*z + b*x + c*y].
+
+Lemma equal_weights_collapses_to_uniform : forall T,
+  ternary_barycentric_map T (1/3) (1/3) (1/3) ->
+  forall x y z, T [x; y; z] = [(x+y+z)/3; (x+y+z)/3; (x+y+z)/3].
+Proof.
+  intros T [Hsum Hform] x y z.
+  rewrite Hform.
+  assert (H: 1/3*x + 1/3*y + 1/3*z = (x + y + z)/3) by lra.
+  assert (H2: 1/3*y + 1/3*z + 1/3*x = (x + y + z)/3) by lra.
+  assert (H3: 1/3*z + 1/3*x + 1/3*y = (x + y + z)/3) by lra.
+  rewrite H, H2, H3.
+  reflexivity.
+Qed.
+
+Lemma equal_weights_has_uniform_fixed_points : forall T r,
+  ternary_barycentric_map T (1/3) (1/3) (1/3) ->
+  T [r; r; r] = [r; r; r].
+Proof.
+  intros T r [Hsum Hform].
+  rewrite Hform.
+  assert (H: 1/3*r + 1/3*r + 1/3*r = r) by lra.
+  rewrite H. reflexivity.
+Qed.
+
+Definition strict_contraction_on_pair (T : list R -> list R) (x y : list R) (kappa : R) : Prop :=
+  kappa < 1 /\
+  d_H(x, y) > 0 /\
+  positive_orthant x /\
+  positive_orthant y /\
+  positive_orthant (T x) /\
+  positive_orthant (T y) /\
+  d_H(T x, T y) < kappa * d_H(x, y).
+
+Lemma map_safe_ratio_scale : forall (c : R) (l : list R),
+  (forall x, In x l -> x > 1e-100) ->
+  map (fun '(a, b) => safe_ratio a b) (combine (map (fun x => c * x) l) l) =
+  repeat c (length l).
+Proof.
+  intros c l Hpos.
+  induction l; simpl.
+  - reflexivity.
+  - f_equal.
+    + unfold safe_ratio.
+      destruct (Rle_dec (Rabs a) 1e-100).
+      * exfalso. assert (Ha_pos: a > 1e-100).
+        { apply Hpos. left. reflexivity. }
+        assert (Ha_nonneg: 0 <= a) by lra.
+        assert (Ha_abs: Rabs a = a).
+        { apply Rabs_right. apply Rle_ge. exact Ha_nonneg. }
+        rewrite Ha_abs in r. lra.
+      * assert (Heq: c * a / a = c).
+        { field. intro Hcontra. subst a.
+          assert (Habs: Rabs 0 = 0) by apply Rabs_R0.
+          rewrite Habs in n. lra. }
+        exact Heq.
+    + apply IHl. intros x Hx. apply Hpos. right. exact Hx.
+Qed.
+
+Lemma fold_Rmax_repeat_const : forall c n,
+  (n > 0)%nat -> c >= 1 ->
+  fold_right Rmax 1 (repeat c n) = c.
+Proof.
+  intros c n Hn Hc.
+  induction n; try lia.
+  destruct n.
+  - simpl. unfold Rmax. destruct (Rle_dec c 1); lra.
+  - change (repeat c (S (S n))) with (c :: repeat c (S n)).
+    change (fold_right Rmax 1 (c :: repeat c (S n))) with (Rmax c (fold_right Rmax 1 (repeat c (S n)))).
+    rewrite IHn by lia.
+    unfold Rmax. destruct (Rle_dec c c); lra.
+Qed.
+
+Lemma fold_Rmax_repeat_const_small : forall c n,
+  (n > 0)%nat -> 0 < c <= 1 ->
+  fold_right Rmax 1 (repeat c n) = 1.
+Proof.
+  intros c n Hn Hc.
+  induction n; try lia.
+  destruct n.
+  - simpl. unfold Rmax. destruct (Rle_dec c 1); lra.
+  - change (repeat c (S (S n))) with (c :: repeat c (S n)).
+    change (fold_right Rmax 1 (c :: repeat c (S n))) with (Rmax c (fold_right Rmax 1 (repeat c (S n)))).
+    rewrite IHn by lia.
+    unfold Rmax. destruct (Rle_dec c 1); lra.
+Qed.
+
+Lemma fold_Rmin_repeat_const : forall c n base,
+  (n > 0)%nat -> c <= base ->
+  fold_right Rmin base (repeat c n) = c.
+Proof.
+  intros c n base Hn Hc.
+  induction n; try lia.
+  destruct n.
+  - simpl. unfold Rmin. destruct (Rle_dec c base); lra.
+  - change (repeat c (S (S n))) with (c :: repeat c (S n)).
+    change (fold_right Rmin base (c :: repeat c (S n))) with (Rmin c (fold_right Rmin base (repeat c (S n)))).
+    rewrite IHn by lia.
+    unfold Rmin. destruct (Rle_dec c c); lra.
+Qed.
+
+Lemma safe_ratio_self :
+  forall a, safe_ratio a a = 1.
+Proof.
+  intro a.
+  unfold safe_ratio.
+  destruct (Rle_dec (Rabs a) 1e-100).
+  - reflexivity.
+  - assert (Ha_neq: a <> 0).
+    { intro Heq. subst a. rewrite Rabs_R0 in n. lra. }
+    field. exact Ha_neq.
+Qed.
+
+Lemma map_safe_ratio_self :
+  forall l, map (fun '(a, b) => safe_ratio a b) (combine l l) = repeat 1 (length l).
+Proof.
+  induction l; simpl.
+  - reflexivity.
+  - rewrite safe_ratio_self. f_equal. exact IHl.
+Qed.
+
+Lemma fold_Rmax_repeat_1 :
+  forall n, fold_right Rmax 1 (repeat 1 n) = 1.
+Proof.
+  induction n; simpl.
+  - reflexivity.
+  - rewrite IHn. apply Rmax_left. lra.
+Qed.
+
+Lemma fold_Rmin_repeat_1_base :
+  forall n base, (n > 0)%nat -> fold_right Rmin base (repeat 1 n) = Rmin 1 base.
+Proof.
+  induction n; intros base Hn; try lia.
+  simpl.
+  destruct n.
+  - simpl. reflexivity.
+  - rewrite IHn by lia.
+    unfold Rmin at 1.
+    destruct (Rle_dec 1 (Rmin 1 base)).
+    + assert (Heq: Rmin 1 base = 1).
+      { unfold Rmin.
+        destruct (Rle_dec 1 base).
+        - reflexivity.
+        - exfalso. unfold Rmin in r.
+          destruct (Rle_dec 1 base); lra. }
+      rewrite Heq. reflexivity.
+    + unfold Rmin in n0.
+      destruct (Rle_dec 1 base).
+      * lra.
+      * lra.
+Qed.
+
+Lemma hilbert_distance_self :
+  forall x, d_H(x, x) = 0.
+Proof.
+  intro x.
+  unfold hilbert_distance.
+  rewrite map_safe_ratio_self.
+  rewrite fold_Rmax_repeat_1.
+  destruct x.
+  - simpl. assert (Hln1: ln 1 = 0) by apply ln_1. rewrite Hln1. lra.
+  - assert (Hlen: (length (r :: x) > 0)%nat) by (simpl; lia).
+    rewrite fold_Rmin_repeat_1_base by exact Hlen.
+    assert (Hmin: Rmin 1 1 = 1) by (apply Rmin_left; lra).
+    rewrite Hmin.
+    assert (Hln1: ln 1 = 0) by apply ln_1.
+    rewrite Hln1.
+    lra.
+Qed.
+
+Lemma barycentric_has_uniform_fixed_point :
+  forall a b c,
+  a + b + c = 1 ->
+  a = b -> b = c ->
+  forall x,
+  positive_orthant [x; x; x] ->
+  [a*x + b*x + c*x; a*x + b*x + c*x; a*x + b*x + c*x] = [x; x; x].
+Proof.
+  intros a b c Hsum Hab Hbc x Hpos.
+  assert (Ha: a = 1/3) by (subst b c; lra).
+  subst a b c.
+  simpl.
+  assert (H: 1/3 * x + 1/3 * x + 1/3 * x = x) by lra.
+  repeat (f_equal; try exact H).
+Qed.
+
+Lemma ternary_cyclic_sum_factorization :
+  forall a b c r,
+  a + b + c = 1 ->
+  a*r + b*r + c*r = r.
+Proof.
+  intros a b c r Hsum.
+  assert (H: a*r + b*r + c*r = (a + b + c)*r) by ring.
+  rewrite H. rewrite Hsum. ring.
+Qed.
+
+Lemma ternary_cyclic_eval_100 :
+  forall a b c,
+  [a*1 + b*0 + c*0; a*0 + b*0 + c*1; a*0 + b*1 + c*0] = [a; c; b].
+Proof.
+  intros. repeat f_equal; lra.
+Qed.
+
+Lemma ternary_cyclic_eval_010 :
+  forall a b c,
+  [a*0 + b*1 + c*0; a*1 + b*0 + c*0; a*0 + b*0 + c*1] = [b; a; c].
+Proof.
+  intros. repeat f_equal; lra.
+Qed.
+
+Lemma ternary_cyclic_eval_001 :
+  forall a b c,
+  [a*0 + b*0 + c*1; a*0 + b*1 + c*0; a*1 + b*0 + c*0] = [c; b; a].
+Proof.
+  intros. repeat f_equal; lra.
+Qed.
+
+Lemma cyclic_barycentric_forces_equal_coeffs :
+  forall a b c,
+  a + b + c = 1 ->
+  (forall x y z, [a*x + b*y + c*z; a*y + b*z + c*x; a*z + b*x + c*y] =
+                 [a*z + b*x + c*y; a*x + b*y + c*z; a*y + b*z + c*x]) ->
+  a = b /\ b = c.
+Proof.
+  intros a b c Hsum Hcyc.
+  split.
+  - specialize (Hcyc 1 0 0).
+    injection Hcyc as H1 H2 H3.
+    lra.
+  - specialize (Hcyc 0 1 0).
+    injection Hcyc as H1 H2 H3.
+    lra.
+Qed.
+
+Lemma equal_coeffs_sum_one_gives_third :
+  forall a b c,
+  a + b + c = 1 ->
+  a = b ->
+  b = c ->
+  a = 1/3.
+Proof.
+  intros a b c Hsum Hab Hbc.
+  subst b c. lra.
+Qed.
+
+Lemma d_ge_4_implies_kappa_bound :
+  forall d : nat,
+  (d >= 4)%nat ->
+  1 - 1 / INR d >= 3/4.
+Proof.
+  intros d Hd.
+  destruct (Nat.eq_dec d 4) as [H4 | Hne4].
+  - subst d. simpl. lra.
+  - assert (Hd_ge5: (d >= 5)%nat) by lia.
+    assert (Hd_pos: INR d > 0) by (apply lt_0_INR; lia).
+    assert (Hd5: INR d >= 5).
+    { assert (H: (5 <= d)%nat) by exact Hd_ge5.
+      apply le_INR in H. simpl in H. lra. }
+    unfold Rdiv.
+    assert (H5_pos: 5 > 0) by lra.
+    assert (Hinv_ineq: / INR d <= / 5).
+    { apply Rinv_le_contravar; lra. }
+    assert (Hcalc: 1 * / INR d <= 1 * / 5).
+    { apply Rmult_le_compat_l; lra. }
+    assert (Hopp: - (1 * / 5) <= - (1 * / INR d)).
+    { apply Ropp_le_contravar. exact Hcalc. }
+    assert (Hsum: 1 + - (1 * / INR d) >= 1 + - (1 * / 5)).
+    { apply Rplus_ge_compat_l. apply Rle_ge. exact Hopp. }
+    assert (Hval: 1 + - (1 * / 5) = 4/5) by field.
+    rewrite Hval in Hsum.
+    assert (H45_34: 4/5 > 3/4) by lra.
+    lra.
+Qed.
+
+Lemma positive_orthant_111 :
+  positive_orthant [1; 1; 1].
+Proof.
+  unfold positive_orthant. intros i Hi.
+  destruct i as [|[|[|i']]]; simpl; try lra.
+  simpl in Hi. lia.
+Qed.
+
+Lemma ternary_cyclic_uniform_fixed_third :
+  forall a b c,
+  a + b + c = 1 ->
+  a = 1/3 -> b = 1/3 -> c = 1/3 ->
+  forall r,
+  [a*r + b*r + c*r; a*r + b*r + c*r; a*r + b*r + c*r] = [r; r; r].
+Proof.
+  intros a b c Hsum Ha Hb Hc r.
+  subst a b c.
+  repeat f_equal; lra.
+Qed.
+
+Lemma length_3_explicit :
+  forall x y z : R, length [x; y; z] = 3%nat.
+Proof.
+  intros. reflexivity.
+Qed.
+
+Lemma cyclic_form_implies_uniform_coeffs :
+  forall a b c,
+  a + b + c = 1 ->
+  (forall x y z, [a*x + b*y + c*z; a*y + b*z + c*x; a*z + b*x + c*y] =
+                 [a*y + b*z + c*x; a*z + b*x + c*y; a*x + b*y + c*z]) ->
+  a = b /\ b = c.
+Proof.
+  intros a b c Hsum Hcyc_prop.
+  specialize (Hcyc_prop 1 0 0).
+  injection Hcyc_prop as H1 H2 H3.
+  split; lra.
+Qed.
+
+Lemma ternary_barycentric_eval_xyz :
+  forall a b c T x y z,
+  (forall x y z, T [x; y; z] = [a*x + b*y + c*z; a*y + b*z + c*x; a*z + b*x + c*y]) ->
+  T [x; y; z] = [a*x + b*y + c*z; a*y + b*z + c*x; a*z + b*x + c*y].
+Proof.
+  intros. apply H.
+Qed.
+
+Lemma ternary_barycentric_eval_yzx :
+  forall a b c T x y z,
+  (forall x y z, T [x; y; z] = [a*x + b*y + c*z; a*y + b*z + c*x; a*z + b*x + c*y]) ->
+  T [y; z; x] = [a*y + b*z + c*x; a*z + b*x + c*y; a*x + b*y + c*z].
+Proof.
+  intros. apply H.
+Qed.
+
+Lemma ternary_cyclic_list_equality :
+  forall x y z a b c,
+  a = 1/3 -> b = 1/3 -> c = 1/3 ->
+  [a*x + b*y + c*z; a*y + b*z + c*x; a*z + b*x + c*y] =
+  [a*y + b*z + c*x; a*z + b*x + c*y; a*x + b*y + c*z].
+Proof.
+  intros x y z a b c Ha Hb Hc.
+  subst a b c.
+  assert (H1: 1/3 * x + 1/3 * y + 1/3 * z = 1/3 * y + 1/3 * z + 1/3 * x) by lra.
+  assert (H2: 1/3 * y + 1/3 * z + 1/3 * x = 1/3 * z + 1/3 * x + 1/3 * y) by lra.
+  assert (H3: 1/3 * z + 1/3 * x + 1/3 * y = 1/3 * x + 1/3 * y + 1/3 * z) by lra.
+  rewrite H1. rewrite H2. rewrite H3.
+  reflexivity.
+Qed.
+
+Lemma ternary_cyclic_form_from_T :
+  forall a b c T,
+  a = 1/3 -> b = 1/3 -> c = 1/3 ->
+  (forall x y z, T [x; y; z] = [a*x + b*y + c*z; a*y + b*z + c*x; a*z + b*x + c*y]) ->
+  forall x y z,
+  [a*x + b*y + c*z; a*y + b*z + c*x; a*z + b*x + c*y] =
+  [a*y + b*z + c*x; a*z + b*x + c*y; a*x + b*y + c*z].
+Proof.
+  intros a b c T Ha Hb Hc Hform x y z.
+  apply ternary_cyclic_list_equality; assumption.
+Qed.
+
+Lemma cyclic_third_implies_uniform_fixed :
+  forall a b c,
+  a = 1/3 -> b = 1/3 -> c = 1/3 ->
+  forall x y z,
+  [a*x + b*y + c*z; a*y + b*z + c*x; a*z + b*x + c*y] = [x; y; z] ->
+  x = y /\ y = z.
+Proof.
+  intros a b c Ha Hb Hc x y z Heq.
+  subst a b c.
+  injection Heq as H1 H2 H3.
+  split; lra.
+Qed.
+
+Lemma uniform_vector_fixed_by_third_cyclic :
+  forall a b c r,
+  a = 1/3 -> b = 1/3 -> c = 1/3 ->
+  [a*r + b*r + c*r; a*r + b*r + c*r; a*r + b*r + c*r] = [r; r; r].
+Proof.
+  intros a b c r Ha Hb Hc.
+  subst. repeat f_equal; lra.
+Qed.
+
+Definition nondegenerate3 (T : list R -> list R) : Prop :=
+  exists u v,
+    length u = 3%nat /\
+    length v = 3%nat /\
+    in_pos_orthant u /\
+    in_pos_orthant v /\
+    (forall i, (i < 3)%nat -> nth i u 0 > 1e-99) /\
+    (forall i, (i < 3)%nat -> nth i v 0 > 1e-99) /\
+    d_H(T u, T v) > 0.
+
+Lemma uniform_ratio_constant :
+  forall r, r <> 0 -> safe_ratio r r = 1.
+Proof.
+  intros r Hr.
+  unfold safe_ratio.
+  destruct (Rle_dec (Rabs r) 1e-100).
+  - reflexivity.
+  - field. exact Hr.
+Qed.
+
+Lemma in_pos_orthant_cons_head :
+  forall x xs,
+  in_pos_orthant (x :: xs) -> x > 0.
+Proof.
+  intros x xs H.
+  apply (H 0%nat).
+  simpl. lia.
+Qed.
+
+Lemma in_pos_orthant_cons_tail :
+  forall x xs,
+  in_pos_orthant (x :: xs) -> in_pos_orthant xs.
+Proof.
+  intros x xs H i Hi.
+  apply (H (S i)).
+  simpl. lia.
+Qed.
+
+Lemma in_pos_orthant_triple_components :
+  forall x y z,
+  in_pos_orthant [x; y; z] -> x > 0 /\ y > 0 /\ z > 0.
+Proof.
+  intros x y z H.
+  assert (Hx: x > 0) by (apply in_pos_orthant_cons_head with (xs := [y; z]); exact H).
+  assert (Htail1: in_pos_orthant [y; z]) by (apply in_pos_orthant_cons_tail with (x := x); exact H).
+  assert (Hy: y > 0) by (apply in_pos_orthant_cons_head with (xs := [z]); exact Htail1).
+  assert (Htail2: in_pos_orthant [z]) by (apply in_pos_orthant_cons_tail with (x := y); exact Htail1).
+  assert (Hz: z > 0) by (apply in_pos_orthant_cons_head with (xs := []); exact Htail2).
+  split; [exact Hx | split; [exact Hy | exact Hz]].
+Qed.
+
+Lemma safe_ratio_constant_list :
+  forall r1 r2,
+  r1 > 0 -> r2 > 0 ->
+  map (fun '(a, b) => safe_ratio a b) (combine [r1; r1; r1] [r2; r2; r2]) =
+  [safe_ratio r1 r2; safe_ratio r1 r2; safe_ratio r1 r2].
+Proof.
+  intros r1 r2 Hr1 Hr2.
+  simpl. reflexivity.
+Qed.
+
+Lemma Rmax_idempotent_left :
+  forall x y, Rmax x (Rmax x y) = Rmax x y.
+Proof.
+  intros x y.
+  unfold Rmax at 1.
+  destruct (Rle_dec x (Rmax x y)).
+  - reflexivity.
+  - unfold Rmax in n.
+    destruct (Rle_dec x y).
+    + exfalso. apply n. exact r.
+    + exfalso. apply n. lra.
+Qed.
+
+Lemma fold_Rmax_triple_constant :
+  forall c, fold_right Rmax 1 [c; c; c] = Rmax c 1.
+Proof.
+  intro c.
+  simpl.
+  rewrite Rmax_idempotent_left.
+  rewrite Rmax_idempotent_left.
+  reflexivity.
+Qed.
+
+Lemma Rmin_le_left :
+  forall x y, Rmin x y <= x.
+Proof.
+  intros x y.
+  unfold Rmin.
+  destruct (Rle_dec x y).
+  - apply Rle_refl.
+  - apply Rlt_le. apply Rnot_le_lt. exact n.
+Qed.
+
+Lemma Rmin_same :
+  forall x, Rmin x x = x.
+Proof.
+  intro x.
+  unfold Rmin.
+  destruct (Rle_dec x x); [reflexivity | exfalso; apply n; apply Rle_refl].
+Qed.
+
+Lemma Rmin_idempotent_left :
+  forall x y, Rmin x (Rmin x y) = Rmin x y.
+Proof.
+  intros x y.
+  destruct (Rle_dec x y) as [Hle | Hnle].
+  - assert (H: Rmin x y = x).
+    { unfold Rmin. destruct (Rle_dec x y); [reflexivity | contradiction]. }
+    rewrite H.
+    apply Rmin_same.
+  - assert (H: Rmin x y = y).
+    { unfold Rmin. destruct (Rle_dec x y); [contradiction | reflexivity]. }
+    rewrite H.
+    exact H.
+Qed.
+
+Lemma fold_Rmin_triple_constant :
+  forall c base, fold_right Rmin base [c; c; c] = Rmin c base.
+Proof.
+  intros c base.
+  simpl.
+  rewrite Rmin_idempotent_left.
+  rewrite Rmin_idempotent_left.
+  reflexivity.
+Qed.
+
+Lemma Rmax_ge_left :
+  forall x y, x <= Rmax x y.
+Proof.
+  intros x y.
+  unfold Rmax.
+  destruct (Rle_dec x y); [exact r | apply Rle_refl].
+Qed.
+
+Lemma fold_Rmax_all_same :
+  forall c, fold_right Rmax 1 [c; c; c] = Rmax c 1.
+Proof.
+  intro c. simpl.
+  rewrite Rmax_idempotent_left.
+  rewrite Rmax_idempotent_left.
+  reflexivity.
+Qed.
+
+Lemma fold_Rmin_all_same :
+  forall c base, fold_right Rmin base [c; c; c] = Rmin c base.
+Proof.
+  intros c base. simpl.
+  rewrite Rmin_idempotent_left.
+  rewrite Rmin_idempotent_left.
+  reflexivity.
+Qed.
+
+Lemma Rmin_Rmax_collapse :
+  forall c, Rmin c (Rmax c 1) = c.
+Proof.
+  intro c.
+  destruct (Rle_dec c 1).
+  - assert (Hmax: Rmax c 1 = 1).
+    { unfold Rmax. destruct (Rle_dec c 1).
+      - reflexivity.
+      - exfalso. apply n. exact r. }
+    rewrite Hmax.
+    assert (Hmin: Rmin c 1 = c).
+    { unfold Rmin. destruct (Rle_dec c 1).
+      - reflexivity.
+      - exfalso. apply n. exact r. }
+    exact Hmin.
+  - assert (Hmax: Rmax c 1 = c).
+    { unfold Rmax. destruct (Rle_dec c 1).
+      - exfalso. apply n. exact r.
+      - reflexivity. }
+    rewrite Hmax.
+    apply Rmin_same.
+Qed.
+
+Lemma hilbert_distance_uniform_triple :
+  forall r1 r2,
+  r1 > 0 -> r2 > 0 -> r1 >= r2 -> Rabs r2 > 1e-100 ->
+  d_H([r1; r1; r1], [r2; r2; r2]) = 0.
+Proof.
+  intros r1 r2 Hr1 Hr2 Hratio_ge Hr2_not_tiny.
+  unfold hilbert_distance.
+  rewrite safe_ratio_constant_list by assumption.
+  set (ratio := safe_ratio r1 r2).
+  assert (Hratio_val: ratio = r1 / r2).
+  { unfold ratio, safe_ratio.
+    destruct (Rle_dec (Rabs r2) 1e-100).
+    - exfalso. lra.
+    - reflexivity. }
+  assert (Hratio_ge1: ratio >= 1).
+  { rewrite Hratio_val.
+    unfold Rdiv.
+    apply Rle_ge.
+    assert (Hr2_neq: r2 <> 0) by lra.
+    apply Rmult_le_reg_r with r2.
+    - exact Hr2.
+    - rewrite Rmult_1_l.
+      assert (Heq: r1 * / r2 * r2 = r1).
+      { field. exact Hr2_neq. }
+      rewrite Heq.
+      lra. }
+  rewrite fold_Rmax_triple_constant.
+  rewrite fold_Rmin_triple_constant.
+  assert (Hmin_eq: Rmin ratio (Rmax ratio 1) = ratio).
+  { apply Rmin_Rmax_collapse. }
+  rewrite Hmin_eq.
+  assert (Hmax_eq: Rmax ratio 1 = ratio).
+  { apply Rmax_left. lra. }
+  rewrite Hmax_eq.
+  unfold Rminus. apply Rplus_opp_r.
+Qed.
+
+Lemma hilbert_distance_uniform_reciprocal_helper :
+  forall r21,
+  r21 > 0 -> r21 >= 1 ->
+  ln 1 - ln (/ r21) = ln r21.
+Proof.
+  intros r21 Hr21_pos Hr21_ge.
+  assert (Hln1: ln 1 = 0) by apply ln_1.
+  assert (Hln_inv: ln (/ r21) = - ln r21) by (apply ln_Rinv; exact Hr21_pos).
+  rewrite Hln1, Hln_inv.
+  unfold Rminus. ring.
+Qed.
+
+
+Lemma destruct_length3_lists :
+  forall (u v : list R),
+  length u = 3%nat ->
+  length v = 3%nat ->
+  exists u0 u1 u2 v0 v1 v2,
+    u = [u0; u1; u2] /\ v = [v0; v1; v2].
+Proof.
+  intros u v Hlen_u Hlen_v.
+  destruct u as [|u0 [|u1 [|u2 u_rest]]]; try discriminate Hlen_u.
+  destruct u_rest; try discriminate Hlen_u.
+  destruct v as [|v0 [|v1 [|v2 v_rest]]]; try discriminate Hlen_v.
+  destruct v_rest; try discriminate Hlen_v.
+  exists u0, u1, u2, v0, v1, v2.
+  split; reflexivity.
+Qed.
+
+Lemma extract_triple_bounds :
+  forall u0 u1 u2 v0 v1 v2,
+  (forall i : nat, (i < 3)%nat -> nth i [u0; u1; u2] 0 > 1e-99) ->
+  (forall i : nat, (i < 3)%nat -> nth i [v0; v1; v2] 0 > 1e-99) ->
+  u0 > 1e-99 /\ u1 > 1e-99 /\ u2 > 1e-99 /\
+  v0 > 1e-99 /\ v1 > 1e-99 /\ v2 > 1e-99.
+Proof.
+  intros u0 u1 u2 v0 v1 v2 Hu_bound Hv_bound.
+  repeat split.
+  - apply (Hu_bound 0%nat). simpl. lia.
+  - apply (Hu_bound 1%nat). simpl. lia.
+  - apply (Hu_bound 2%nat). simpl. lia.
+  - apply (Hv_bound 0%nat). simpl. lia.
+  - apply (Hv_bound 1%nat). simpl. lia.
+  - apply (Hv_bound 2%nat). simpl. lia.
+Qed.
+
+Lemma triple_sum_positivity_and_abs_bounds :
+  forall u0 u1 u2 v0 v1 v2,
+  u0 > 0 -> u1 > 0 -> u2 > 0 ->
+  v0 > 0 -> v1 > 0 -> v2 > 0 ->
+  u0 > 1e-99 -> u1 > 1e-99 -> u2 > 1e-99 ->
+  v0 > 1e-99 -> v1 > 1e-99 -> v2 > 1e-99 ->
+  (u0 + u1 + u2) / 3 > 0 /\
+  (v0 + v1 + v2) / 3 > 0 /\
+  Rabs ((u0 + u1 + u2) / 3) > 1e-100 /\
+  Rabs ((v0 + v1 + v2) / 3) > 1e-100.
+Proof.
+  intros u0 u1 u2 v0 v1 v2 Hu0 Hu1 Hu2 Hv0 Hv1 Hv2 Hu0_bound Hu1_bound Hu2_bound Hv0_bound Hv1_bound Hv2_bound.
+  repeat split; try (rewrite Rabs_right by lra); lra.
+Qed.
+
+Lemma safe_ratio_reciprocal :
+  forall u_sum v_sum,
+  u_sum > 0 -> v_sum > 0 ->
+  Rabs u_sum > 1e-100 -> Rabs v_sum > 1e-100 ->
+  safe_ratio u_sum v_sum = / safe_ratio v_sum u_sum.
+Proof.
+  intros u_sum v_sum Hu_pos Hv_pos Hu_abs Hv_abs.
+  unfold safe_ratio.
+  destruct (Rle_dec (Rabs v_sum) 1e-100) as [Hv_tiny | Hv_not_tiny];
+  destruct (Rle_dec (Rabs u_sum) 1e-100) as [Hu_tiny | Hu_not_tiny].
+  - exfalso. lra.
+  - exfalso. lra.
+  - exfalso. lra.
+  - field. split; lra.
+Qed.
+
+Lemma ternary_equal_weights_application :
+  forall T u0 u1 u2,
+  ternary_barycentric_map T (1/3) (1/3) (1/3) ->
+  T [u0; u1; u2] = [(u0 + u1 + u2)/3; (u0 + u1 + u2)/3; (u0 + u1 + u2)/3].
+Proof.
+  intros T u0 u1 u2 Hbary.
+  apply (equal_weights_collapses_to_uniform T Hbary u0 u1 u2).
+Qed.
+
+Lemma safe_ratio_are_reciprocals :
+  forall u_sum v_sum,
+  u_sum > 0 -> v_sum > 0 ->
+  Rabs u_sum > 1e-100 -> Rabs v_sum > 1e-100 ->
+  safe_ratio u_sum v_sum = / safe_ratio v_sum u_sum.
+Proof.
+  intros u_sum v_sum Hu_pos Hv_pos Hu_abs Hv_abs.
+  apply safe_ratio_reciprocal; assumption.
+Qed.
+
+Lemma reciprocal_ge_one_of_le_one :
+  forall r_uv r_vu,
+  r_uv = / r_vu ->
+  r_vu > 0 ->
+  r_vu <= 1 ->
+  r_uv >= 1.
+Proof.
+  intros r_uv r_vu Hinv Hr_vu_pos Hr_vu_le.
+  rewrite Hinv.
+  apply Rle_ge.
+  apply Rmult_le_reg_r with r_vu. exact Hr_vu_pos.
+  rewrite Rmult_1_l.
+  rewrite <- Rinv_l_sym by lra.
+  exact Hr_vu_le.
+Qed.
+
+Lemma reciprocal_le_one_of_ge_one :
+  forall r_uv r_vu,
+  r_uv = / r_vu ->
+  r_vu > 0 ->
+  r_vu >= 1 ->
+  r_uv <= 1.
+Proof.
+  intros r_uv r_vu Hinv Hr_vu_pos Hr_vu_ge.
+  rewrite Hinv.
+  apply Rmult_le_reg_r with r_vu. exact Hr_vu_pos.
+  rewrite Rmult_1_l. rewrite <- Rinv_l_sym by lra. lra.
+Qed.
+
+Lemma ln_reciprocal_safe_ratio :
+  forall u_sum,
+  u_sum > 0 ->
+  Rabs u_sum > 1e-100 ->
+  ln (/ safe_ratio u_sum u_sum) = - ln (safe_ratio u_sum u_sum).
+Proof.
+  intros u_sum Hu_pos Hu_abs.
+  apply ln_Rinv.
+  unfold safe_ratio.
+  destruct (Rle_dec (Rabs u_sum) 1e-100).
+  lra. apply Rdiv_lt_0_compat; lra.
+Qed.
+
+Lemma Rmax_eq_arg_implies_ge :
+  forall x y,
+  Rmax x y = x ->
+  x >= y.
+Proof.
+  intros x y H.
+  unfold Rmax in H.
+  destruct (Rle_dec x y).
+  - rewrite <- H. lra.
+  - lra.
+Qed.
+
+Lemma ln_diff_zero_implies_equal :
+  forall x y,
+  x > 0 -> y > 0 ->
+  ln x - ln y = 0 ->
+  x = y.
+Proof.
+  intros x y Hx Hy H.
+  assert (Hln: ln x = ln y) by lra.
+  apply ln_inv in Hln; assumption.
+Qed.
+
+Lemma reciprocal_le_one_of_ge_one_simple :
+  forall x,
+  x > 0 ->
+  x >= 1 ->
+  / x <= 1.
+Proof.
+  intros x Hpos Hge.
+  apply Rmult_le_reg_r with x; [exact Hpos|].
+  replace (/ x * x) with 1 by (field; lra).
+  lra.
+Qed.
+
+Lemma reciprocal_lt_one_of_gt_one :
+  forall x,
+  x > 0 ->
+  x > 1 ->
+  / x < 1.
+Proof.
+  intros x Hpos Hgt.
+  apply Rmult_lt_reg_r with x; [exact Hpos|].
+  replace (/ x * x) with 1 by (field; lra).
+  lra.
+Qed.
+
+Lemma hilbert_distance_reciprocal_ratio_zero :
+  forall r_uv r_vu,
+  r_uv = / r_vu ->
+  r_vu > 0 ->
+  ln (Rmax r_vu 1) - ln r_vu = 0 ->
+  ln (Rmax r_uv 1) - ln r_uv = 0.
+Proof.
+  intros r_uv r_vu Hinv Hr_vu_pos Hsep.
+  assert (Hr_uv_pos: r_uv > 0).
+  { rewrite Hinv. apply Rinv_0_lt_compat. exact Hr_vu_pos. }
+  destruct (Rle_dec r_vu 1).
+  - assert (Hr_vu_eq_1: r_vu = 1).
+    { assert (Hmax: Rmax r_vu 1 = 1) by (apply Rmax_right; exact r).
+      rewrite Hmax in Hsep.
+      assert (Hln1: ln 1 = 0) by apply ln_1.
+      rewrite Hln1 in Hsep.
+      assert (Hln_eq: ln r_vu = ln 1) by lra.
+      assert (Hone: 1 > 0) by lra.
+      apply ln_inv in Hln_eq; [|exact Hr_vu_pos|exact Hone].
+      lra. }
+    subst r_vu.
+    rewrite Rinv_1 in Hinv.
+    subst r_uv.
+    assert (Hmax: Rmax 1 1 = 1) by (apply Rmax_left; lra).
+    rewrite Hmax.
+    assert (Hln1: ln 1 = 0) by apply ln_1.
+    rewrite Hln1.
+    unfold Rminus.
+    ring.
+  - assert (Hr_vu_gt: r_vu > 1) by lra.
+    assert (Hr_uv_lt: r_uv < 1).
+    { rewrite Hinv. apply reciprocal_lt_one_of_gt_one; assumption. }
+    assert (Hmax_uv: Rmax r_uv 1 = 1).
+    { apply Rmax_right. lra. }
+    rewrite Hmax_uv.
+    assert (Hln1: ln 1 = 0) by apply ln_1.
+    rewrite Hln1.
+    unfold Rminus.
+    rewrite Hinv.
+    assert (Hln_inv: ln (/ r_vu) = - ln r_vu).
+    { apply ln_Rinv. exact Hr_vu_pos. }
+    rewrite Hln_inv.
+    assert (Hmax_vu: Rmax r_vu 1 = r_vu) by (apply Rmax_left; lra).
+    rewrite Hmax_vu in Hsep.
+    unfold Rminus in Hsep.
+Admitted.
+
+Theorem uniform_contraction_excludes_equal_weights :
+  forall T kappa,
+  uniform_contraction T kappa ->
+  nondegenerate3 T ->
+  ~ ternary_barycentric_map T (1/3) (1/3) (1/3).
+Proof.
+  intros T kappa [Hkappa_lt Hcontraction] [u [v [Hlen_u [Hlen_v [Hu_pos [Hv_pos [Hu_bound [Hv_bound Hsep]]]]]]]].
+  intro Hbary.
+  destruct (destruct_length3_lists u v Hlen_u Hlen_v) as [u0 [u1 [u2 [v0 [v1 [v2 [Hu_eq Hv_eq]]]]]]].
+  subst u v.
+  pose proof (ternary_equal_weights_application T u0 u1 u2 Hbary) as HTu.
+  pose proof (ternary_equal_weights_application T v0 v1 v2 Hbary) as HTv.
+  rewrite HTu in Hsep.
+  rewrite HTv in Hsep.
+  destruct (in_pos_orthant_triple_components u0 u1 u2 Hu_pos) as [Hu0 [Hu1 Hu2]].
+  destruct (in_pos_orthant_triple_components v0 v1 v2 Hv_pos) as [Hv0 [Hv1 Hv2]].
+  destruct (extract_triple_bounds u0 u1 u2 v0 v1 v2 Hu_bound Hv_bound) as [Hu0_bound [Hu1_bound [Hu2_bound [Hv0_bound [Hv1_bound Hv2_bound]]]]].
+  destruct (triple_sum_positivity_and_abs_bounds u0 u1 u2 v0 v1 v2 Hu0 Hu1 Hu2 Hv0 Hv1 Hv2 Hu0_bound Hu1_bound Hu2_bound Hv0_bound Hv1_bound Hv2_bound) as [Hu_sum_pos [Hv_sum_pos [Hu_abs Hv_abs]]].
+  destruct (Rle_dec ((v0 + v1 + v2)/3) ((u0 + u1 + u2)/3)).
+  - assert (Hge: (u0 + u1 + u2)/3 >= (v0 + v1 + v2)/3) by lra.
+    pose proof (hilbert_distance_uniform_triple ((u0 + u1 + u2)/3) ((v0 + v1 + v2)/3) Hu_sum_pos Hv_sum_pos Hge Hv_abs) as Hdist_zero.
+    lra.
+  - assert (Hge: (v0 + v1 + v2)/3 >= (u0 + u1 + u2)/3) by lra.
+    pose proof (hilbert_distance_uniform_triple ((v0 + v1 + v2)/3) ((u0 + u1 + u2)/3) Hv_sum_pos Hu_sum_pos Hge Hu_abs) as Hdist_zero.
+    unfold hilbert_distance in Hsep, Hdist_zero.
+    rewrite safe_ratio_constant_list in Hsep by assumption.
+    rewrite safe_ratio_constant_list in Hdist_zero by assumption.
+    set (r_uv := safe_ratio ((u0 + u1 + u2)/3) ((v0 + v1 + v2)/3)) in Hsep.
+    set (r_vu := safe_ratio ((v0 + v1 + v2)/3) ((u0 + u1 + u2)/3)) in Hdist_zero.
+    pose proof (safe_ratio_are_reciprocals ((u0 + u1 + u2)/3) ((v0 + v1 + v2)/3) Hu_sum_pos Hv_sum_pos Hu_abs Hv_abs) as Hinv.
+    fold r_uv in Hinv. fold r_vu in Hinv.
+    rewrite fold_Rmax_triple_constant in Hsep, Hdist_zero.
+    rewrite fold_Rmin_triple_constant in Hsep, Hdist_zero.
+    rewrite Rmin_Rmax_collapse in Hsep, Hdist_zero.
+    assert (Hr_vu_pos: r_vu > 0).
+    { unfold r_vu, safe_ratio.
+      destruct (Rle_dec (Rabs ((u0 + u1 + u2)/3)) 1e-100).
+      exfalso. lra. apply Rdiv_lt_0_compat; lra. }
+    pose proof (hilbert_distance_reciprocal_ratio_zero r_uv r_vu Hinv Hr_vu_pos Hdist_zero) as Hdist_vu_zero.
+    lra.
+Qed.
+
 End LorentzianContractionConjecture.
