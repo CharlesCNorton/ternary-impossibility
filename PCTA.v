@@ -33,9 +33,199 @@ Require Import Coq.Reals.Ranalysis.
 Require Import Flocq.Core.Core.
 Require Import Flocq.Core.Generic_fmt.
 Require Import Flocq.Core.FLT.
+Require Import QArith.
+Require Import Qcanon.
+Require Import Coq.Reals.Raxioms.
+Require Import Coq.QArith.Qreals.
+Require Import Coq.setoid_ring.Ring_theory.
+Require Import Coq.QArith.Qring.
 
 (* Use real number notations by default *)
 Open Scope R_scope.
+
+(* ========================================================================= *)
+(* Computational/Constructive Definitions                                    *)
+(* ========================================================================= *)
+
+Section ComputationalContent.
+
+Open Scope Q_scope.
+
+Definition compute_lipschitz_constant_Q (n : nat) : option Q :=
+  match n with
+  | O => None
+  | S O => None
+  | S (S O) => None
+  | S (S (S m)) => Some (inject_Z (Z.of_nat n) / inject_Z (Z.of_nat (n - 1)))
+  end.
+
+Example compute_lipschitz_3 : compute_lipschitz_constant_Q 3 = Some (3 # 2).
+Proof. reflexivity. Qed.
+
+Example compute_lipschitz_4 : compute_lipschitz_constant_Q 4 = Some (4 # 3).
+Proof. reflexivity. Qed.
+
+Example compute_lipschitz_10 : compute_lipschitz_constant_Q 10 = Some (10 # 9).
+Proof. reflexivity. Qed.
+
+Fixpoint nat_power_Q (base : Q) (n : nat) : Q :=
+  match n with
+  | O => 1
+  | S n' => base * nat_power_Q base n'
+  end.
+
+Definition compute_three_halves_power (n : nat) : Q :=
+  nat_power_Q (3 # 2) n.
+
+Example test_3_2_power_1 : compute_three_halves_power 1 = (3 # 2).
+Proof. reflexivity. Qed.
+
+Example test_3_2_power_2 : compute_three_halves_power 2 = (9 # 4).
+Proof. reflexivity. Qed.
+
+Example test_3_2_power_12 : compute_three_halves_power 12 = (531441 # 4096).
+Proof. vm_compute. reflexivity. Qed.
+
+Definition check_exceeds_100 (q : Q) : bool :=
+  Qle_bool 100 q.
+
+Example verify_12_iterations_exceeds_100 :
+  check_exceeds_100 (compute_three_halves_power 12) = true.
+Proof. vm_compute. reflexivity. Qed.
+
+Example verify_11_iterations_below_100 :
+  check_exceeds_100 (compute_three_halves_power 11) = false.
+Proof. vm_compute. reflexivity. Qed.
+
+Fixpoint iterate_ternary_Q (x : Q) (n : nat) : Q :=
+  match n with
+  | O => x
+  | S n' => let v := iterate_ternary_Q x n' in (v + v + v) / 2
+  end.
+
+Example test_iterate_12_exceeds_100 :
+  check_exceeds_100 (iterate_ternary_Q 1 12) = true.
+Proof. vm_compute. reflexivity. Qed.
+
+Example test_iterate_11_below_100 :
+  check_exceeds_100 (iterate_ternary_Q 1 11) = false.
+Proof. vm_compute. reflexivity. Qed.
+
+Lemma Qmult_3_div_2_eq : forall q : Q,
+  ((q + q + q) / 2 == (3 # 2) * q)%Q.
+Proof.
+  intro q.
+  field.
+Qed.
+
+Lemma Qeq_to_eq : forall (a b : Q), a == b -> Qred a = Qred b.
+Proof.
+  intros a b Heq.
+  apply Qred_complete.
+  exact Heq.
+Qed.
+
+Lemma Qred_involutive : forall q : Q, Qred (Qred q) = Qred q.
+Proof.
+  intro q.
+  apply Qred_complete.
+  apply Qred_correct.
+Qed.
+
+Require Import Coq.QArith.Qcanon.
+
+Lemma iterate_ternary_Q_equals_power : forall n,
+  iterate_ternary_Q 1 n == nat_power_Q (3 # 2) n.
+Proof.
+  induction n as [|n' IH].
+  - reflexivity.
+  - simpl iterate_ternary_Q.
+    simpl nat_power_Q.
+    rewrite Qmult_3_div_2_eq.
+    rewrite IH.
+    reflexivity.
+Qed.
+
+Close Scope Q_scope.
+
+End ComputationalContent.
+
+(* ========================================================================= *)
+(* Reflection - Connecting Computational Q to Real R                        *)
+(* ========================================================================= *)
+
+Section ComputationalReflection.
+
+Lemma Q2R_nat_power : forall (base : Q) (n : nat),
+  Q2R (nat_power_Q base n) = (Q2R base) ^ n.
+Proof.
+  intros base n.
+  induction n as [|n' IH].
+  - simpl. unfold Q2R. simpl. lra.
+  - simpl nat_power_Q.
+    rewrite Q2R_mult.
+    rewrite IH.
+    simpl. ring.
+Qed.
+
+Theorem lipschitz_constant_computable_3 :
+  exists Lq : Q,
+    compute_lipschitz_constant_Q 3 = Some Lq /\
+    Q2R Lq = 3 / 2.
+Proof.
+  exists (3 # 2)%Q.
+  split.
+  - reflexivity.
+  - unfold Q2R. simpl. lra.
+Qed.
+
+Theorem lipschitz_constant_computable_4 :
+  exists Lq : Q,
+    compute_lipschitz_constant_Q 4 = Some Lq /\
+    Q2R Lq = 4 / 3.
+Proof.
+  exists (4 # 3)%Q.
+  split.
+  - reflexivity.
+  - unfold Q2R. simpl. lra.
+Qed.
+
+Theorem lipschitz_constant_computable_10 :
+  exists Lq : Q,
+    compute_lipschitz_constant_Q 10 = Some Lq /\
+    Q2R Lq = 10 / 9.
+Proof.
+  exists (10 # 9)%Q.
+  split.
+  - reflexivity.
+  - unfold Q2R. simpl. lra.
+Qed.
+
+Theorem three_halves_power_computable : forall n,
+  Q2R (compute_three_halves_power n) = (3/2) ^ n.
+Proof.
+  intro n.
+  unfold compute_three_halves_power.
+  rewrite Q2R_nat_power.
+  unfold Q2R at 1. simpl.
+  lra.
+Qed.
+
+Theorem computational_verification_of_12_iterations :
+  (3/2)^12 > 100.
+Proof.
+  assert (H: Q2R (compute_three_halves_power 12) = (3/2)^12).
+  { apply three_halves_power_computable. }
+  rewrite <- H.
+  assert (Hcheck: check_exceeds_100 (compute_three_halves_power 12) = true).
+  { vm_compute. reflexivity. }
+  unfold check_exceeds_100 in Hcheck.
+  apply Qle_bool_iff in Hcheck.
+  apply Qle_Rle in Hcheck.
+  simpl in Hcheck. lra.
+Qed.
+
+End ComputationalReflection.
 
 (* Main formalization section *)
 Section TernaryAlgebraicStructure.
@@ -7309,6 +7499,51 @@ Proof.
       * apply Rle_ge.
         apply pow_le.
         lra.
+Qed.
+
+Lemma rnd_error_bound : forall x : R,
+  Rabs (rnd x - x) <= / 2 * ulp radix2 flt_exp x.
+Proof.
+  intro x.
+  unfold rnd.
+  apply error_le_half_ulp; apply FLT_exp_valid || apply valid_rnd_N.
+  apply prec_positive.
+Qed.
+
+Lemma mag_monotone : forall x y : R,
+  x <> 0 -> y <> 0 ->
+  Rabs x <= Rabs y ->
+  (mag radix2 x <= mag radix2 y)%Z.
+Proof.
+  intros x y Hx Hy Habs.
+  assert (Hx_pos: 0 < Rabs x).
+  { apply Rabs_pos_lt. exact Hx. }
+  assert (Hy_pos: 0 < Rabs y).
+  { apply Rabs_pos_lt. exact Hy. }
+  apply mag_le_abs; assumption.
+Qed.
+
+Lemma ulp_monotone : forall x y : R,
+  x <> 0 -> y <> 0 ->
+  Rabs x <= Rabs y ->
+  ulp radix2 flt_exp x <= ulp radix2 flt_exp y.
+Proof.
+  intros x y Hx Hy Hxy.
+  assert (Hmag: (mag radix2 x <= mag radix2 y)%Z).
+  { apply mag_monotone; assumption. }
+  unfold ulp.
+  rewrite Req_bool_false by exact Hx.
+  rewrite Req_bool_false by exact Hy.
+  unfold flt_exp, FLT_exp.
+  apply bpow_le.
+  assert (Hmax_x: (mag radix2 x - prec <= Z.max (mag radix2 x - prec) emin)%Z) by apply Z.le_max_l.
+  assert (Hmax_y: (mag radix2 y - prec <= Z.max (mag radix2 y - prec) emin)%Z) by apply Z.le_max_l.
+  assert (Hemin_x: (emin <= Z.max (mag radix2 x - prec) emin)%Z) by apply Z.le_max_r.
+  assert (Hemin_y: (emin <= Z.max (mag radix2 y - prec) emin)%Z) by apply Z.le_max_r.
+  apply Z.max_lub.
+  - assert (H: (mag radix2 x - prec <= mag radix2 y - prec)%Z) by lia.
+    eapply Z.le_trans; [exact H | exact Hmax_y].
+  - exact Hemin_y.
 Qed.
 
 End FloatingPointTernaryAlgebra.
