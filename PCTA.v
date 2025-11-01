@@ -7563,3 +7563,631 @@ Proof.
 Qed.
 
 End FloatingPointTernaryAlgebra.
+
+(* ========================================================================= *)
+(* Computational Decision Procedures for Constraint Satisfiability          *)
+(* ========================================================================= *)
+
+Section DecisionProcedures.
+
+Definition constraint_set := list Constraint.
+
+Definition has_all_three (cs : constraint_set) : bool :=
+  (existsb (fun c => match c with Cyclic => true | _ => false end) cs) &&
+  (existsb (fun c => match c with Identity => true | _ => false end) cs) &&
+  (existsb (fun c => match c with Barycentric => true | _ => false end) cs).
+
+Definition is_satisfiable_dec (cs : constraint_set) : bool :=
+  negb (has_all_three cs).
+
+Lemma existsb_Cyclic_correct : forall cs,
+  existsb (fun c => match c with Cyclic => true | _ => false end) cs = true <->
+  List.In Cyclic cs.
+Proof.
+  intro cs.
+  rewrite existsb_exists.
+  split.
+  - intros [x [Hin Hmatch]].
+    destruct x; try discriminate Hmatch.
+    exact Hin.
+  - intro Hin.
+    exists Cyclic.
+    split; [exact Hin | reflexivity].
+Qed.
+
+Lemma existsb_Identity_correct : forall cs,
+  existsb (fun c => match c with Identity => true | _ => false end) cs = true <->
+  List.In Identity cs.
+Proof.
+  intro cs.
+  rewrite existsb_exists.
+  split.
+  - intros [x [Hin Hmatch]].
+    destruct x; try discriminate Hmatch.
+    exact Hin.
+  - intro Hin.
+    exists Identity.
+    split; [exact Hin | reflexivity].
+Qed.
+
+Lemma existsb_Barycentric_correct : forall cs,
+  existsb (fun c => match c with Barycentric => true | _ => false end) cs = true <->
+  List.In Barycentric cs.
+Proof.
+  intro cs.
+  rewrite existsb_exists.
+  split.
+  - intros [x [Hin Hmatch]].
+    destruct x; try discriminate Hmatch.
+    exact Hin.
+  - intro Hin.
+    exists Barycentric.
+    split; [exact Hin | reflexivity].
+Qed.
+
+Lemma has_all_three_correct : forall cs,
+  has_all_three cs = true <->
+  (List.In Cyclic cs /\ List.In Identity cs /\ List.In Barycentric cs).
+Proof.
+  intro cs.
+  unfold has_all_three.
+  rewrite Bool.andb_true_iff.
+  rewrite Bool.andb_true_iff.
+  rewrite existsb_Cyclic_correct.
+  rewrite existsb_Identity_correct.
+  rewrite existsb_Barycentric_correct.
+  tauto.
+Qed.
+
+Lemma has_all_three_false_iff : forall cs,
+  has_all_three cs = false <->
+  ~ (List.In Cyclic cs /\ List.In Identity cs /\ List.In Barycentric cs).
+Proof.
+  intro cs.
+  destruct (has_all_three cs) eqn:Heq.
+  - rewrite has_all_three_correct in Heq.
+    split.
+    + intro H. discriminate H.
+    + intro Hcontra. exfalso. apply Hcontra. exact Heq.
+  - split.
+    + intros H Hcontra.
+      assert (Htrue: has_all_three cs = true).
+      { rewrite has_all_three_correct. exact Hcontra. }
+      rewrite Htrue in Heq.
+      discriminate Heq.
+    + intro H. reflexivity.
+Qed.
+
+Theorem decision_procedure_correct : forall cs,
+  is_satisfiable_dec cs = true <-> satisfiable cs.
+Proof.
+  intro cs.
+  unfold is_satisfiable_dec.
+  rewrite Bool.negb_true_iff.
+  rewrite has_all_three_false_iff.
+  rewrite constraint_lattice_complete_characterization.
+  tauto.
+Qed.
+
+Example test_empty : is_satisfiable_dec [] = true.
+Proof. reflexivity. Qed.
+
+Example test_cyclic_only : is_satisfiable_dec [Cyclic] = true.
+Proof. reflexivity. Qed.
+
+Example test_identity_only : is_satisfiable_dec [Identity] = true.
+Proof. reflexivity. Qed.
+
+Example test_barycentric_only : is_satisfiable_dec [Barycentric] = true.
+Proof. reflexivity. Qed.
+
+Example test_cyclic_identity : is_satisfiable_dec [Cyclic; Identity] = true.
+Proof. reflexivity. Qed.
+
+Example test_cyclic_barycentric : is_satisfiable_dec [Cyclic; Barycentric] = true.
+Proof. reflexivity. Qed.
+
+Example test_identity_barycentric : is_satisfiable_dec [Identity; Barycentric] = true.
+Proof. reflexivity. Qed.
+
+Example test_all_three : is_satisfiable_dec [Cyclic; Identity; Barycentric] = false.
+Proof. reflexivity. Qed.
+
+Example test_all_three_duplicates :
+  is_satisfiable_dec [Cyclic; Cyclic; Identity; Barycentric; Barycentric] = false.
+Proof. reflexivity. Qed.
+
+Example test_all_three_reverse : is_satisfiable_dec [Barycentric; Identity; Cyclic] = false.
+Proof. reflexivity. Qed.
+
+Corollary decision_procedure_sound : forall cs,
+  is_satisfiable_dec cs = false -> ~ satisfiable cs.
+Proof.
+  intros cs Hdec.
+  intro Hsat.
+  apply decision_procedure_correct in Hsat.
+  rewrite Hdec in Hsat.
+  discriminate Hsat.
+Qed.
+
+Corollary decision_procedure_complete : forall cs,
+  satisfiable cs -> is_satisfiable_dec cs = true.
+Proof.
+  intros cs Hsat.
+  apply decision_procedure_correct.
+  exact Hsat.
+Qed.
+
+End DecisionProcedures.
+
+(* ========================================================================= *)
+(* Generalization to Arbitrary Arity n ≥ 2                                  *)
+(* ========================================================================= *)
+
+Section ArbitraryArityGeneralization.
+
+Definition nary_barycentric_general (n : nat) (op : list R -> R) : Prop :=
+  nary_affine n op /\
+  exists coeffs, length coeffs = n /\ sum_list coeffs = 1 /\
+    forall inputs, length inputs = n ->
+      op inputs = sum_list (map (fun '(c, x) => c * x) (combine coeffs inputs)).
+
+Fixpoint unit_vector (n i : nat) : list R :=
+  match n with
+  | O => []
+  | S n' => if (Nat.eqb i O) then 1 :: repeat 0 n' else 0 :: unit_vector n' (i - 1)
+  end.
+
+Lemma unit_vector_length : forall n i,
+  length (unit_vector n i) = n.
+Proof.
+  induction n; intro i.
+  - reflexivity.
+  - simpl. destruct (Nat.eqb i 0).
+    + simpl. rewrite repeat_length. reflexivity.
+    + simpl. rewrite IHn. reflexivity.
+Qed.
+
+Lemma map_combine_repeat_zero : forall m cs,
+  length cs = m ->
+  map (fun '(c, x) => c * x) (combine cs (repeat 0 m)) = repeat 0 m.
+Proof.
+  intros m cs Hlen.
+  generalize dependent m.
+  induction cs; intros m Hlen.
+  - simpl. subst m. reflexivity.
+  - destruct m; simpl.
+    + discriminate Hlen.
+    + injection Hlen as Hlen.
+      assert (H: a * 0 = 0) by lra.
+      rewrite H. f_equal.
+      apply IHcs. exact Hlen.
+Qed.
+
+Lemma sum_list_repeat_zero : forall m,
+  sum_list (repeat 0 m) = 0.
+Proof.
+  intro m.
+  induction m; simpl.
+  - reflexivity.
+  - rewrite IHm. lra.
+Qed.
+
+Lemma sum_list_all_zero : forall (l : list R) m,
+  length l = m ->
+  (forall i, (i < m)%nat -> nth i l 0 = 0) ->
+  sum_list l = 0.
+Proof.
+  intros l m Hlen Hall_zero.
+  revert Hall_zero.
+  revert m Hlen.
+  induction l as [|x xs IHxs]; intros m Hlen Hall_zero.
+  - simpl. reflexivity.
+  - simpl.
+    assert (Hx_zero: x = 0).
+    { assert (H0: nth 0%nat (x :: xs) 0 = x) by reflexivity.
+      rewrite <- H0.
+      apply Hall_zero.
+      simpl in Hlen. lia. }
+    rewrite Hx_zero.
+    assert (IH: sum_list xs = 0).
+    { apply IHxs with (m := length xs).
+      - reflexivity.
+      - intros i Hi.
+        assert (Hsucc: nth (S i) (x :: xs) 0 = nth i xs 0) by reflexivity.
+        rewrite <- Hsucc.
+        apply Hall_zero.
+        simpl in Hlen. lia. }
+    rewrite IH. lra.
+Qed.
+
+Lemma map_combine_repeat_one : forall m cs,
+  length cs = m ->
+  sum_list (map (fun '(c, x) => c * x) (combine cs (repeat 1 m))) = sum_list cs.
+Proof.
+  intros m cs Hlen.
+  generalize dependent m.
+  induction cs as [|c cs' IHcs]; intros m Hlen.
+  - simpl. reflexivity.
+  - destruct m; try discriminate Hlen.
+    simpl. injection Hlen as Hlen.
+    assert (Hc1: c * 1 = c) by lra.
+    rewrite Hc1.
+    f_equal.
+    apply IHcs.
+    exact Hlen.
+Qed.
+
+Lemma unit_vector_zero : forall n,
+  unit_vector n 0 = match n with O => [] | S m => 1 :: repeat 0 m end.
+Proof.
+  intro n.
+  destruct n; simpl; reflexivity.
+Qed.
+
+Lemma unit_vector_succ : forall n i,
+  unit_vector (S n) (S i) = 0 :: unit_vector n i.
+Proof.
+  intros n i.
+  unfold unit_vector. fold unit_vector.
+  simpl Nat.eqb.
+  f_equal.
+  replace (S i - 1)%nat with i by lia.
+  reflexivity.
+Qed.
+
+Lemma sum_list_combine_unit_vector : forall n i coeffs,
+  length coeffs = n ->
+  (i < n)%nat ->
+  sum_list (map (fun '(c, x) => c * x) (combine coeffs (unit_vector n i))) = nth i coeffs 0.
+Proof.
+  induction n; intros i coeffs Hlen Hi.
+  - lia.
+  - destruct coeffs as [|c cs]; try discriminate Hlen.
+    injection Hlen as Hlen_cs.
+    destruct i.
+    + rewrite unit_vector_zero.
+      simpl combine. simpl map. simpl sum_list.
+      rewrite map_combine_repeat_zero by exact Hlen_cs.
+      rewrite sum_list_repeat_zero.
+      simpl nth. lra.
+    + rewrite unit_vector_succ.
+      simpl combine. simpl map. simpl sum_list.
+      assert (Hc0: c * 0 = 0) by lra.
+      rewrite Hc0.
+      assert (Hzero: 0 + sum_list (map (fun '(c0, x) => c0 * x) (combine cs (unit_vector n i))) =
+                     sum_list (map (fun '(c0, x) => c0 * x) (combine cs (unit_vector n i)))).
+      { lra. }
+      rewrite Hzero.
+      rewrite IHn by (try exact Hlen_cs; lia).
+      reflexivity.
+Qed.
+
+Lemma skipn_cons : forall (A : Type) (x : A) (l : list A) k,
+  skipn (S k) (x :: l) = skipn k l.
+Proof.
+  intros A x l k.
+  reflexivity.
+Qed.
+
+Lemma firstn_cons : forall (A : Type) (x : A) (l : list A) k,
+  firstn (S k) (x :: l) = x :: firstn k l.
+Proof.
+  intros A x l k.
+  reflexivity.
+Qed.
+
+Lemma skipn_repeat : forall (A : Type) (x : A) n k,
+  skipn k (repeat x n) = repeat x (n - k).
+Proof.
+  intros A x n.
+  induction n; intro k.
+  - simpl. destruct k; reflexivity.
+  - destruct k.
+    + simpl. reflexivity.
+    + simpl. apply IHn.
+Qed.
+
+Lemma firstn_repeat : forall (A : Type) (x : A) n k,
+  firstn k (repeat x n) = repeat x (min k n).
+Proof.
+  intros A x n.
+  induction n; intro k.
+  - simpl. destruct k; reflexivity.
+  - destruct k.
+    + reflexivity.
+    + simpl. f_equal. apply IHn.
+Qed.
+
+Lemma skipn_cons_S : forall (A : Type) (x : A) (l : list A) k,
+  skipn (S k) (x :: l) = skipn k l.
+Proof.
+  reflexivity.
+Qed.
+
+Lemma firstn_cons_S : forall (A : Type) (x : A) (l : list A) k,
+  firstn (S k) (x :: l) = x :: firstn k l.
+Proof.
+  reflexivity.
+Qed.
+
+Lemma app_cons_assoc : forall (A : Type) (x : A) (l1 l2 : list A),
+  l1 ++ x :: l2 = (l1 ++ [x]) ++ l2.
+Proof.
+  intros. rewrite <- app_assoc. reflexivity.
+Qed.
+
+Lemma repeat_cons : forall (A : Type) (x : A) n,
+  x :: repeat x n = repeat x (S n).
+Proof.
+  intros A x n.
+  reflexivity.
+Qed.
+
+Lemma app_repeat_0 : forall n,
+  repeat 0 n ++ [1] = repeat 0 n ++ (1 :: nil).
+Proof.
+  intros. reflexivity.
+Qed.
+
+Lemma unit_vector_structure : forall n i,
+  (i < n)%nat ->
+  unit_vector n i = repeat 0 i ++ [1] ++ repeat 0 (n - i - 1).
+Proof.
+  induction n as [|n' IHn]; intros i Hi.
+  - lia.
+  - destruct i.
+    + assert (Heq: (S n' - 0 - 1)%nat = n') by lia.
+      rewrite Heq.
+      rewrite unit_vector_zero.
+      reflexivity.
+    + assert (Heq: (S n' - S i - 1)%nat = (n' - i - 1)%nat) by lia.
+      rewrite Heq.
+      assert (Hi': (i < n')%nat) by lia.
+      rewrite unit_vector_succ.
+      rewrite IHn by exact Hi'.
+      reflexivity.
+Qed.
+
+Lemma skipn_app_ge : forall (A : Type) (l1 l2 : list A) n,
+  (n >= length l1)%nat ->
+  skipn n (l1 ++ l2) = skipn (n - length l1) l2.
+Proof.
+  intros A l1 l2 n Hn.
+  generalize dependent n.
+  induction l1; intros n Hn.
+  - simpl. replace (n - 0)%nat with n by lia. reflexivity.
+  - destruct n.
+    + simpl in Hn. lia.
+    + simpl. apply IHl1. simpl in Hn. lia.
+Qed.
+
+Lemma firstn_app : forall (A : Type) (l1 l2 : list A) n,
+  firstn n (l1 ++ l2) =
+  if (n <=? length l1)%nat then firstn n l1 else l1 ++ firstn (n - length l1) l2.
+Proof.
+  intros A l1 l2 n.
+  generalize dependent n.
+  induction l1; intros n.
+  - simpl. destruct n; reflexivity.
+  - destruct n.
+    + reflexivity.
+    + simpl. rewrite IHl1.
+      destruct (n <=? length l1)%nat eqn:E.
+      * reflexivity.
+      * reflexivity.
+Qed.
+
+Lemma skipn_cons_length : forall (A : Type) (x : A) (l : list A),
+  skipn 1 (x :: l) = l.
+Proof.
+  intros. reflexivity.
+Qed.
+
+Lemma firstn_cons_1 : forall (A : Type) (x : A) (l : list A),
+  firstn 1 (x :: l) = [x].
+Proof.
+  intros. reflexivity.
+Qed.
+
+Lemma skipn_all : forall (A : Type) (l : list A) n,
+  (n >= length l)%nat ->
+  skipn n l = [].
+Proof.
+  intros A l n Hn.
+  generalize dependent n.
+  induction l; intros n Hn.
+  - destruct n; reflexivity.
+  - destruct n.
+    + simpl in Hn. lia.
+    + simpl. apply IHl. simpl in Hn. lia.
+Qed.
+
+Lemma firstn_all : forall (A : Type) (l : list A) n,
+  (n >= length l)%nat ->
+  firstn n l = l.
+Proof.
+  intros A l n Hn.
+  generalize dependent n.
+  induction l; intros n Hn.
+  - destruct n; reflexivity.
+  - destruct n.
+    + simpl in Hn. lia.
+    + simpl. f_equal. apply IHl. simpl in Hn. lia.
+Qed.
+
+Lemma rotation_of_unit_vector_0 : forall n i,
+  (0 < n)%nat -> (i < n)%nat ->
+  skipn (n - i) (unit_vector n 0) ++ firstn (n - i) (unit_vector n 0) =
+  repeat 0 i ++ [1] ++ repeat 0 (n - i - 1).
+Proof.
+  intros n i Hn Hi.
+  destruct n as [|m]. lia.
+  rewrite unit_vector_zero.
+  assert (Hdiff: (S m - i)%nat = S (m - i)).
+  { lia. }
+  rewrite Hdiff.
+  destruct (m - i)%nat as [|k] eqn:E.
+  - assert (Heq: i = m).
+    { apply Nat.sub_0_le in E.
+      assert (Hi': (i <= m)%nat) by lia.
+      lia. }
+    subst i.
+    simpl. reflexivity.
+  - replace (S m - i - 1)%nat with (S k) by lia.
+    assert (Hskip_eq: forall l, skipn (S (S k)) (1 :: l) = skipn (S k) l) by (intros; reflexivity).
+    rewrite Hskip_eq.
+    assert (Hfirst_eq: forall l, firstn (S (S k)) (1 :: l) = 1 :: firstn (S k) l) by (intros; reflexivity).
+    rewrite Hfirst_eq.
+    rewrite skipn_repeat.
+    rewrite firstn_repeat.
+    replace (m - S k)%nat with i by lia.
+    assert (Hmin_eq: Nat.min (S k) m = S k) by (apply Nat.min_l; lia).
+    rewrite Hmin_eq.
+    assert (Hsk_eq: S k = (m - i)%nat) by lia.
+    rewrite Hsk_eq.
+    replace (S (m - i) - 1)%nat with (m - i)%nat by lia.
+    reflexivity.
+Qed.
+
+Lemma unit_vector_is_rotation_of_unit_vector_0 : forall n i,
+  (0 < n)%nat -> (i < n)%nat ->
+  unit_vector n i = skipn (n - i) (unit_vector n 0) ++ firstn (n - i) (unit_vector n 0).
+Proof.
+  intros n i Hn Hi.
+  rewrite rotation_of_unit_vector_0 by (exact Hn || exact Hi).
+  rewrite unit_vector_structure by exact Hi.
+  reflexivity.
+Qed.
+
+Theorem nary_cyclic_affine_equal_coeffs : forall n op coeffs,
+  (n > 0)%nat ->
+  nary_cyclic n op ->
+  length coeffs = n ->
+  sum_list coeffs = 1 ->
+  (forall inputs, length inputs = n ->
+      op inputs = sum_list (map (fun '(c, x) => c * x) (combine coeffs inputs))) ->
+  forall i j, (i < n)%nat -> (j < n)%nat -> nth i coeffs 0 = nth j coeffs 0.
+Proof.
+  intros n op coeffs Hn_pos Hcyc Hlen Hsum Haffine i j Hi Hj.
+  unfold nary_cyclic in Hcyc.
+  assert (Hui: op (unit_vector n i) = nth i coeffs 0).
+  { rewrite Haffine by (rewrite unit_vector_length; reflexivity).
+    apply sum_list_combine_unit_vector; assumption. }
+  assert (Huj: op (unit_vector n j) = nth j coeffs 0).
+  { rewrite Haffine by (rewrite unit_vector_length; reflexivity).
+    apply sum_list_combine_unit_vector; assumption. }
+  assert (Hrot: op (unit_vector n i) = op (unit_vector n j)).
+  { destruct (Nat.eq_dec i j) as [Heq | Hneq].
+    - subst j. reflexivity.
+    - assert (Hui0: op (unit_vector n i) = op (unit_vector n 0)).
+      { destruct (Nat.eq_dec i 0).
+        + subst. reflexivity.
+        + rewrite (unit_vector_is_rotation_of_unit_vector_0 n i) at 1 by lia.
+          symmetry. apply Hcyc; [rewrite unit_vector_length; reflexivity | lia]. }
+      assert (Huj0: op (unit_vector n j) = op (unit_vector n 0)).
+      { destruct (Nat.eq_dec j 0).
+        + subst. reflexivity.
+        + rewrite (unit_vector_is_rotation_of_unit_vector_0 n j) at 1 by lia.
+          symmetry. apply Hcyc; [rewrite unit_vector_length; reflexivity | lia]. }
+      rewrite Hui0, Huj0. reflexivity. }
+  rewrite Hui in Hrot.
+  rewrite Huj in Hrot.
+  exact Hrot.
+Qed.
+
+Theorem nary_impossibility_general : forall n op,
+  (n >= 2)%nat ->
+  nary_cyclic n op ->
+  nary_identity_law n op 0 ->
+  nary_affine n op ->
+  False.
+Proof.
+  intros n op Hn_ge2 Hcyc Hid Haff.
+  destruct Haff as [coeffs [Hlen [Hsum Haff_eq]]].
+  destruct n as [|[|n']]; try lia.
+  set (n := S n').
+  assert (Hn_pos: (S n > 0)%nat) by lia.
+  assert (H_all_equal: forall i j, (i < S n)%nat -> (j < S n)%nat -> nth i coeffs 0 = nth j coeffs 0).
+  { intros i j Hi Hj.
+    eapply nary_cyclic_affine_equal_coeffs; eauto. }
+  assert (H_first_zero: nth 0 coeffs 0 = 0).
+  { unfold nary_identity_law in Hid.
+    destruct coeffs as [|c0 cs_tail]; try discriminate Hlen.
+    simpl in Hsum.
+    injection Hlen as Hlen_tail.
+    assert (Hn_eq: (S n - 1)%nat = n) by lia.
+    assert (Hid1: op (0 :: repeat 1 n) = 1).
+    { rewrite <- Hn_eq. apply Hid. }
+    assert (Hlen_input: length (0 :: repeat 1 n) = S n).
+    { simpl. rewrite repeat_length. lia. }
+    rewrite Haff_eq in Hid1 by exact Hlen_input.
+    assert (H_expand: sum_list (map (fun '(c, x) => c * x) (combine (c0 :: cs_tail) (0 :: repeat 1 n))) =
+                      c0 * 0 + sum_list (map (fun '(c, x) => c * x) (combine cs_tail (repeat 1 n)))).
+    { simpl. reflexivity. }
+    rewrite H_expand in Hid1. clear H_expand.
+    assert (Hmap_eq: sum_list (map (fun '(c, x) => c * x) (combine cs_tail (repeat 1 n))) = sum_list cs_tail).
+    { apply map_combine_repeat_one. exact Hlen_tail. }
+    rewrite Hmap_eq in Hid1.
+    assert (Htotal: c0 + sum_list cs_tail = 1) by exact Hsum.
+    simpl. lra. }
+  assert (H_all_zero: forall i, (i < S n)%nat -> nth i coeffs 0 = 0).
+  { intro i. intro Hi.
+    rewrite (H_all_equal i 0%nat) by lia.
+    exact H_first_zero. }
+  assert (H_sum_zero: sum_list coeffs = 0).
+  { apply sum_list_all_zero with (m := S n); assumption. }
+  rewrite H_sum_zero in Hsum.
+  lra.
+Qed.
+
+Corollary binary_impossibility : forall op,
+  nary_cyclic 2 op ->
+  nary_identity_law 2 op 0 ->
+  nary_affine 2 op ->
+  False.
+Proof.
+  intros op Hcyc Hid Haff.
+  apply (nary_impossibility_general 2 op); try lia; assumption.
+Qed.
+
+Corollary ternary_impossibility_via_nary : forall op,
+  nary_cyclic 3 op ->
+  nary_identity_law 3 op 0 ->
+  nary_affine 3 op ->
+  False.
+Proof.
+  intros op Hcyc Hid Haff.
+  apply (nary_impossibility_general 3 op); try lia; assumption.
+Qed.
+
+Corollary quaternary_impossibility : forall op,
+  nary_cyclic 4 op ->
+  nary_identity_law 4 op 0 ->
+  nary_affine 4 op ->
+  False.
+Proof.
+  intros op Hcyc Hid Haff.
+  apply (nary_impossibility_general 4 op); try lia; assumption.
+Qed.
+
+End ArbitraryArityGeneralization.
+
+(* ========================================================================= *)
+(* Projective Contraction for Lorentzian Polynomials                        *)
+(* ========================================================================= *)
+
+Section LorentzianContractionConjecture.
+
+Definition safe_ratio (a b : R) : R :=
+  if Rle_dec (Rabs b) 1e-100 then 1 else a / b.
+
+Definition hilbert_distance (x y : list R) : R :=
+  let ratios := map (fun '(a, b) => safe_ratio a b) (combine x y) in
+  let max_ratio := fold_right Rmax 1 ratios in
+  let min_ratio := fold_right Rmin max_ratio ratios in
+  ln max_ratio - ln min_ratio.
+
+Notation "'d_H' ( x , y )" := (hilbert_distance x y) (at level 50).
+
+End LorentzianContractionConjecture.
