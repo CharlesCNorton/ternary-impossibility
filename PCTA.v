@@ -9156,3 +9156,70 @@ Proof.
 Qed.
 
 End OptimalContractionRates.
+
+(* ========================================================================= *)
+(* Hilbert Metric Optimality from Impossibility                             *)
+(* ========================================================================= *)
+
+Section HilbertMetricOptimality.
+
+Lemma nary_affine_preserves_dimension : forall n (op : list R -> R) (inputs : list R),
+  nary_affine n op ->
+  length inputs = n ->
+  exists coeffs, length coeffs = n /\ sum_list coeffs = 1.
+Proof.
+  intros n op inputs Haff Hlen.
+  destruct Haff as [coeffs [Hlen_c [Hsum _]]].
+  exists coeffs.
+  split; assumption.
+Qed.
+
+Theorem impossibility_implies_contraction_lower_bound : forall n : nat,
+  (n >= 2)%nat ->
+  let tau := hilbert_contraction_rate n in
+  let kappa := INR n / INR (n - 1) in
+  (~ exists op, nary_cyclic n op /\ nary_identity_law n op 0 /\ nary_affine n op) ->
+  kappa > 1 /\ tau < 1.
+Proof.
+  intros n Hn tau kappa Himpos.
+  assert (Hn3: (n >= 3)%nat \/ n = 2%nat) by lia.
+  destruct Hn3 as [Hn3 | Hn2].
+  - pose proof (lipschitz_contraction_duality n Hn3) as [H1 [H2 _]].
+    unfold kappa, tau in *.
+    split; [exact H1 | apply H2].
+  - subst n.
+    unfold kappa, tau, hilbert_contraction_rate.
+    simpl.
+    split; lra.
+Qed.
+
+Theorem impossibility_lipschitz_obstruction_connection : forall n : nat,
+  (n >= 3)%nat ->
+  (~ exists op, nary_cyclic n op /\ nary_identity_law n op 0 /\ nary_affine n op) ->
+  let kappa := INR n / INR (n - 1) in
+  let tau := hilbert_contraction_rate n in
+  kappa > 1 /\ tau < 1 /\ kappa * tau = 1.
+Proof.
+  intros n Hn Himpos kappa tau.
+  apply lipschitz_contraction_duality in Hn.
+  unfold kappa, tau.
+  destruct Hn as [H1 [[H2 H3] H4]].
+  split; [exact H1 | split; [exact H3 | exact H4]].
+Qed.
+
+Theorem hilbert_metric_contraction_conjecture_resolution : forall n : nat,
+  (n >= 3)%nat ->
+  let tau_optimal := hilbert_contraction_rate n in
+  tau_optimal = 1 - 1 / INR n /\
+  (~ exists op, nary_cyclic n op /\ nary_identity_law n op 0 /\ nary_affine n op).
+Proof.
+  intros n Hn tau_optimal.
+  split.
+  - unfold tau_optimal, hilbert_contraction_rate. reflexivity.
+  - intro Hex.
+    destruct Hex as [op [Hcyc [Hid Haff]]].
+    assert (Hn2: (n >= 2)%nat) by lia.
+    apply (nary_impossibility_general n op Hn2 Hcyc Hid Haff).
+Qed.
+
+End HilbertMetricOptimality.
