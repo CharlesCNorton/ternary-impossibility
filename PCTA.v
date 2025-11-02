@@ -9673,3 +9673,73 @@ Proof.
     apply lipschitz_times_contraction_equals_one. exact Hn2.
   - apply nary_stability_condition. exact Hn.
 Qed.
+
+Lemma honest_node_lipschitz_contraction_product : forall (n f : nat),
+  (n >= 3*f + 1)%nat ->
+  (f >= 1)%nat ->
+  let n_honest := (n - f)%nat in
+  let kappa := INR n_honest / INR (n_honest - 1) in
+  let tau := 1 - 1 / INR n_honest in
+  kappa * tau = 1.
+Proof.
+  intros n f Hn Hf n_honest kappa tau.
+  unfold kappa, tau, n_honest.
+  assert (Hn_honest: (n - f >= 2)%nat).
+  { lia. }
+  apply lipschitz_times_contraction_equals_one.
+  exact Hn_honest.
+Qed.
+
+Corollary fault_adjusted_contraction_rate : forall (n f : nat),
+  (n >= 3*f + 1)%nat ->
+  (f >= 1)%nat ->
+  let tau := 1 - 1 / INR (n - f) in
+  tau = hilbert_contraction_rate (n - f).
+Proof.
+  intros n f Hn Hf tau.
+  unfold tau, hilbert_contraction_rate.
+  reflexivity.
+Qed.
+
+Lemma dolev_boundary_honest_count : forall (n f : nat),
+  (n = 3*f + 1)%nat ->
+  (f >= 1)%nat ->
+  let n_honest := (n - f)%nat in
+  let tau := 1 - 1 / INR n_honest in
+  n_honest = (2*f + 1)%nat /\ tau = 1 - 1 / INR (2*f + 1).
+Proof.
+  intros n f Hn Hf n_honest tau.
+  split.
+  - unfold n_honest. rewrite Hn. lia.
+  - unfold tau, n_honest. rewrite Hn.
+    assert (Heq: (3 * f + 1 - f = 2 * f + 1)%nat) by lia.
+    rewrite Heq. reflexivity.
+Qed.
+
+Theorem fault_tolerant_impossibility_properties :
+  forall (n f : nat),
+  (n >= 3*f + 1)%nat ->
+  (f >= 1)%nat ->
+  let n_honest := (n - f)%nat in
+  let kappa := INR n_honest / INR (n_honest - 1) in
+  let tau := 1 - 1 / INR n_honest in
+  (kappa > 1) /\
+  (0 < tau < 1) /\
+  (kappa * tau = 1) /\
+  (tau = hilbert_contraction_rate n_honest) /\
+  (~ exists op, nary_cyclic n_honest op /\ nary_identity_law n_honest op 0 /\ nary_affine n_honest op).
+Proof.
+  intros n f Hn Hf n_honest kappa tau.
+  assert (Hn_honest: (n_honest >= 2)%nat).
+  { unfold n_honest. lia. }
+  assert (Hn_honest3: (n_honest >= 3)%nat).
+  { unfold n_honest. lia. }
+  split; [|split; [|split; [|split]]].
+  - unfold kappa, n_honest. apply nary_stability_condition. exact Hn_honest3.
+  - unfold tau, n_honest. apply hilbert_rate_bounds. exact Hn_honest.
+  - unfold kappa, tau, n_honest.
+    apply lipschitz_times_contraction_equals_one. exact Hn_honest.
+  - unfold tau, n_honest. reflexivity.
+  - intro Hex. destruct Hex as [op [Hcyc [Hid Haff]]].
+    apply (nary_impossibility_general n_honest op Hn_honest Hcyc Hid Haff).
+Qed.
