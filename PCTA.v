@@ -9409,3 +9409,130 @@ Proof.
 Qed.
 
 End GeneralizedSymmetries.
+
+(* ========================================================================= *)
+(* Byzantine Resilience and Fault Tolerance                                  *)
+(* ========================================================================= *)
+
+Section ByzantineResilience.
+
+Definition nary_byzantine_resilient (n f : nat) (op : list R -> R) : Prop :=
+  (f < n)%nat /\
+  forall honest_inputs byzantine_inputs combined,
+    length honest_inputs = (n - f)%nat ->
+    length byzantine_inputs = f ->
+    Permutation combined (honest_inputs ++ byzantine_inputs) ->
+    length combined = n ->
+    exists result_honest,
+      op honest_inputs = result_honest /\
+      Rabs (op combined - result_honest) <= Rabs (op byzantine_inputs - result_honest).
+
+Definition ternary_1_resilient (op : R -> R -> R -> R) : Prop :=
+  forall h1 h2 byz,
+    h1 <= h2 ->
+    let result := op h1 h2 byz in
+    h1 <= result <= h2 \/ result = byz.
+
+Lemma median3_is_1_resilient :
+  ternary_1_resilient median3.
+Proof.
+  unfold ternary_1_resilient.
+  intros h1 h2 byz Hle.
+  simpl.
+  apply byzantine_resilience_median_filter.
+  exact Hle.
+Qed.
+
+Lemma median3_not_affine :
+  ~ (exists a b c, a + b + c = 1 /\
+      forall x y z, median3 x y z = a*x + b*y + c*z).
+Proof.
+  intro Hex.
+  destruct Hex as [a [b [c [Hsum Hmed]]]].
+  pose proof (Hmed 0 0 1) as Heq1.
+  pose proof (Hmed 0 1 0) as Heq2.
+  assert (Hmed1_val: median3 0 0 1 = 0).
+  { unfold median3. repeat (destruct Rle_dec; try lra). }
+  assert (Hmed2_val: median3 0 1 0 = 0).
+  { unfold median3. repeat (destruct Rle_dec; try lra). }
+  rewrite Hmed1_val in Heq1.
+  rewrite Hmed2_val in Heq2.
+  assert (Haffine1: a*0 + b*0 + c*1 = c) by ring.
+  assert (Haffine2: a*0 + b*1 + c*0 = b) by ring.
+  rewrite Haffine1 in Heq1.
+  rewrite Haffine2 in Heq2.
+  assert (Hbc0: b = 0 /\ c = 0) by lra.
+  destruct Hbc0 as [Hb Hc].
+  assert (Ha1: a = 1) by lra.
+  subst a b c.
+  pose proof (Hmed 0 1 1) as Heq3.
+  assert (Hmed3_val: median3 0 1 1 = 1).
+  { unfold median3. repeat (destruct Rle_dec; try lra). }
+  rewrite Hmed3_val in Heq3.
+  simpl in Heq3.
+  lra.
+Qed.
+
+End ByzantineResilience.
+
+(* ========================================================================= *)
+(* Monotonicity Analysis                                                     *)
+(* ========================================================================= *)
+
+Section MonotonicityAnalysis.
+
+Definition ternary_monotonic (op : R -> R -> R -> R) : Prop :=
+  forall x1 x2 x3 y1 y2 y3,
+    x1 <= y1 -> x2 <= y2 -> x3 <= y3 ->
+    op x1 x2 x3 <= op y1 y2 y3.
+
+Definition nary_monotonic (n : nat) (op : list R -> R) : Prop :=
+  forall inputs1 inputs2,
+    length inputs1 = n ->
+    length inputs2 = n ->
+    (forall i, (i < n)%nat -> nth i inputs1 0 <= nth i inputs2 0) ->
+    op inputs1 <= op inputs2.
+
+Lemma affine_with_nonneg_coeffs_is_monotonic :
+  forall a b c,
+    a >= 0 -> b >= 0 -> c >= 0 ->
+    a + b + c = 1 ->
+    ternary_monotonic (fun x y z => a*x + b*y + c*z).
+Proof.
+  intros a b c Ha Hb Hc Hsum.
+  unfold ternary_monotonic.
+  intros x1 x2 x3 y1 y2 y3 H1 H2 H3.
+  assert (Hx: a*x1 <= a*y1).
+  { apply Rmult_le_compat_l; [lra | exact H1]. }
+  assert (Hy: b*x2 <= b*y2).
+  { apply Rmult_le_compat_l; [lra | exact H2]. }
+  assert (Hz: c*x3 <= c*y3).
+  { apply Rmult_le_compat_l; [lra | exact H3]. }
+  lra.
+Qed.
+
+Theorem monotonic_identity_affine_compatible :
+  exists op : R -> R -> R -> R,
+    ternary_monotonic op /\
+    (forall x, op 0 x x = x) /\
+    (exists a b c, a + b + c = 1 /\ forall x y z, op x y z = a*x + b*y + c*z).
+Proof.
+  exists (fun x y z => (y + z) / 2).
+  split; [|split].
+  - assert (Heq: forall x y z, (y + z) / 2 = 0 * x + 1/2 * y + 1/2 * z).
+    { intros. unfold Rdiv. field. }
+    unfold ternary_monotonic.
+    intros x1 x2 x3 y1 y2 y3 H1 H2 H3.
+    rewrite (Heq x1 x2 x3).
+    rewrite (Heq y1 y2 y3).
+    pose proof (affine_with_nonneg_coeffs_is_monotonic 0 (1/2) (1/2) ltac:(lra) ltac:(lra) ltac:(lra) ltac:(lra)) as Hmono.
+    unfold ternary_monotonic in Hmono.
+    apply Hmono; assumption.
+  - intro x. unfold Rdiv. field.
+  - exists 0, (1/2), (1/2).
+    split; [lra |].
+    intros x y z.
+    unfold Rdiv. field.
+Qed.
+
+End MonotonicityAnalysis.
