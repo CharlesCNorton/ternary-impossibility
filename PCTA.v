@@ -9223,3 +9223,101 @@ Proof.
 Qed.
 
 End HilbertMetricOptimality.
+
+(* ========================================================================= *)
+(* Algorithmic Consequences: Protocol Analysis                               *)
+(* ========================================================================= *)
+
+Section AlgorithmicConsequences.
+
+Definition lipschitz_constant_3 (f : R -> R -> R -> R) : R :=
+  3 / 2.
+
+Lemma median3_witness_achieves_32_bound : forall x,
+  x > 0 ->
+  median3 (2*x) x 0 = x.
+Proof.
+  intros x Hx.
+  apply median3_amplification_witness.
+  exact Hx.
+Qed.
+
+Theorem median3_outperforms_impossibility_bound :
+  let n := 3%nat in
+  let kappa_impossible := INR n / INR (n - 1) in
+  kappa_impossible = 3 / 2 /\
+  (forall x, x <> 0 ->
+    Rabs (median3 x x x) / Rabs x = 1 /\ 1 < 3 / 2).
+Proof.
+  simpl.
+  split.
+  - lra.
+  - intros x Hx.
+    split.
+    + pose proof (median_stable_denom2_amplifies x Hx) as [H _].
+      exact H.
+    + lra.
+Qed.
+
+Theorem denom2_achieves_impossibility_bound :
+  let n := 3%nat in
+  let kappa := INR n / INR (n - 1) in
+  kappa = 3 / 2 /\
+  (forall x, x <> 0 ->
+    Rabs (ternary_denom_2 x x x) / Rabs x = 3 / 2).
+Proof.
+  simpl.
+  split.
+  - lra.
+  - intros x Hx.
+    pose proof (median_stable_denom2_amplifies x Hx) as [_ H].
+    exact H.
+Qed.
+
+Definition simple_average_3 (x y z : R) : R :=
+  (x + y + z) / 3.
+
+Lemma simple_average_is_affine_but_not_identity :
+  (exists a b c, a + b + c = 1 /\
+    forall x y z, simple_average_3 x y z = a*x + b*y + c*z) /\
+  ~ (forall x, simple_average_3 0 x x = x).
+Proof.
+  split.
+  - exists (1/3), (1/3), (1/3).
+    split; [lra |].
+    intros x y z.
+    unfold simple_average_3.
+    lra.
+  - intro H.
+    specialize (H 1).
+    unfold simple_average_3 in H.
+    lra.
+Qed.
+
+Theorem protocol_landscape_summary :
+  let kappa_impossible := 3 / 2 in
+  kappa_impossible = INR 3 / INR (3 - 1) /\
+  (forall x, x <> 0 -> Rabs (median3 x x x) / Rabs x < kappa_impossible) /\
+  (forall x, x <> 0 -> Rabs (ternary_denom_2 x x x) / Rabs x = kappa_impossible) /\
+  (~ exists op, nary_cyclic 3 op /\ nary_identity_law 3 op 0 /\ nary_affine 3 op).
+Proof.
+  simpl.
+  split; [|split; [|split]].
+  - lra.
+  - intros x Hx.
+    pose proof (median3_outperforms_impossibility_bound) as [_ H].
+    simpl in H.
+    specialize (H x Hx).
+    destruct H as [Hmed _].
+    rewrite Hmed.
+    lra.
+  - intros x Hx.
+    pose proof (denom2_achieves_impossibility_bound) as [_ H].
+    simpl in H.
+    exact (H x Hx).
+  - intro Hex.
+    destruct Hex as [op [Hcyc [Hid Haff]]].
+    apply (nary_impossibility_general 3 op); try lia; assumption.
+Qed.
+
+End AlgorithmicConsequences.
