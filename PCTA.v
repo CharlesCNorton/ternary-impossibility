@@ -9321,3 +9321,91 @@ Proof.
 Qed.
 
 End AlgorithmicConsequences.
+
+(* ========================================================================= *)
+(* Generalized Symmetries and Resilience Patterns                           *)
+(* ========================================================================= *)
+
+Section GeneralizedSymmetries.
+
+Definition ternary_symmetric (op : R -> R -> R -> R) : Prop :=
+  forall x y z,
+    op x y z = op x z y /\
+    op x y z = op y x z /\
+    op x y z = op y z x /\
+    op x y z = op z x y /\
+    op x y z = op z y x.
+
+Lemma symmetric_implies_cyclic : forall op : R -> R -> R -> R,
+  ternary_symmetric op ->
+  forall x y z, op x y z = op y z x.
+Proof.
+  intros op Hsym x y z.
+  unfold ternary_symmetric in Hsym.
+  destruct (Hsym x y z) as [_ [_ [H _]]].
+  exact H.
+Qed.
+
+Definition nary_symmetric (n : nat) (op : list R -> R) : Prop :=
+  forall inputs perm,
+    length inputs = n ->
+    Permutation inputs perm ->
+    op inputs = op perm.
+
+Lemma rotation_is_permutation : forall (l : list R) k,
+  Permutation l (skipn k l ++ firstn k l).
+Proof.
+  intros l k.
+  rewrite <- (firstn_skipn k l) at 1.
+  apply Permutation_app_comm.
+Qed.
+
+Lemma nary_symmetric_implies_cyclic : forall n op,
+  (n >= 2)%nat ->
+  nary_symmetric n op ->
+  nary_cyclic n op.
+Proof.
+  intros n op Hn Hsym.
+  unfold nary_symmetric, nary_cyclic in *.
+  intros inputs Hlen k Hk.
+  apply Hsym.
+  + assumption.
+  + apply rotation_is_permutation.
+Qed.
+
+Theorem symmetric_identity_affine_impossibility : forall n op,
+  (n >= 2)%nat ->
+  nary_symmetric n op ->
+  nary_identity_law n op 0 ->
+  nary_affine n op ->
+  False.
+Proof.
+  intros n op Hn Hsym Hid Haff.
+  apply (nary_impossibility_general n op Hn).
+  - apply nary_symmetric_implies_cyclic; assumption.
+  - exact Hid.
+  - exact Haff.
+Qed.
+
+Definition nary_reflection_symmetric (n : nat) (op : list R -> R) : Prop :=
+  forall inputs,
+    length inputs = n ->
+    op inputs = op (rev inputs).
+
+Theorem symmetry_hierarchy :
+  forall n op,
+    (n >= 2)%nat ->
+    nary_symmetric n op ->
+    nary_cyclic n op /\ nary_reflection_symmetric n op.
+Proof.
+  intros n op Hn Hsym.
+  split.
+  - apply nary_symmetric_implies_cyclic; assumption.
+  - unfold nary_symmetric, nary_reflection_symmetric in *.
+    intros inputs Hlen.
+    apply Hsym.
+    + assumption.
+    + apply Permutation_rev.
+Qed.
+
+End GeneralizedSymmetries.
