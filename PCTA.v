@@ -9536,3 +9536,78 @@ Proof.
 Qed.
 
 End MonotonicityAnalysis.
+
+(* ========================================================================= *)
+(* Connection to Approximate Agreement Theory                                *)
+(* ========================================================================= *)
+
+Section ApproximateAgreement.
+
+Definition convergence_rate (n : nat) : R :=
+  (INR (n - 1)) / INR n.
+
+Lemma convergence_rate_is_dual_to_lipschitz : forall n : nat,
+  (n >= 2)%nat ->
+  let kappa := INR n / INR (n - 1) in
+  let gamma := convergence_rate n in
+  kappa * gamma = 1.
+Proof.
+  intros n Hn kappa gamma.
+  unfold kappa, gamma, convergence_rate.
+  assert (Hn_pos: INR n > 0) by (apply lt_0_INR; lia).
+  assert (Hn1_pos: INR (n - 1) > 0) by (apply lt_0_INR; lia).
+  unfold Rdiv.
+  field. split; lra.
+Qed.
+
+Definition range_reduction_factor (n : nat) : R :=
+  1 - 1 / INR n.
+
+Theorem impossibility_bound_is_convergence_reciprocal : forall n : nat,
+  (n >= 2)%nat ->
+  let kappa_obstruction := INR n / INR (n - 1) in
+  let gamma_retention := convergence_rate n in
+  kappa_obstruction = 1 / gamma_retention.
+Proof.
+  intros n Hn kappa_obstruction gamma_retention.
+  unfold kappa_obstruction, gamma_retention, convergence_rate.
+  assert (Hn_pos: INR n > 0) by (apply lt_0_INR; lia).
+  assert (Hn1_pos: INR (n - 1) > 0) by (apply lt_0_INR; lia).
+  unfold Rdiv.
+  field. split; lra.
+Qed.
+
+Theorem fundamental_tradeoff_distributed_averaging : forall n : nat,
+  (n >= 3)%nat ->
+  let kappa := INR n / INR (n - 1) in
+  let gamma := convergence_rate n in
+  let tau := hilbert_contraction_rate n in
+  (~ exists op, nary_cyclic n op /\ nary_identity_law n op 0 /\ nary_affine n op) /\
+  kappa = 1 / gamma /\
+  kappa * tau = 1 /\
+  gamma = tau.
+Proof.
+  intros n Hn kappa gamma tau.
+  split; [|split; [|split]].
+  - intro Hex.
+    destruct Hex as [op [Hcyc [Hid Haff]]].
+    assert (Hn2: (n >= 2)%nat) by lia.
+    apply (nary_impossibility_general n op Hn2 Hcyc Hid Haff).
+  - unfold kappa, gamma.
+    apply impossibility_bound_is_convergence_reciprocal.
+    lia.
+  - unfold kappa, tau.
+    apply lipschitz_times_contraction_equals_one.
+    lia.
+  - unfold gamma, tau, convergence_rate, hilbert_contraction_rate.
+    assert (Hn_pos: INR n > 0) by (apply lt_0_INR; lia).
+    assert (Hdiff: INR n - INR (n - 1) = 1).
+    { rewrite minus_INR by lia. simpl. lra. }
+    unfold Rdiv.
+    replace (1 - 1 * / INR n) with ((INR n - 1) * / INR n) by (field; lra).
+    replace (INR (n - 1) * / INR n) with ((INR n - 1) * / INR n).
+    + reflexivity.
+    + rewrite <- Hdiff. ring.
+Qed.
+
+End ApproximateAgreement.
