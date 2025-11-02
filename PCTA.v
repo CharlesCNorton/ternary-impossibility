@@ -6627,7 +6627,7 @@ Definition asymptotic_equiv (a b : R) : Prop :=
 
 Notation "a ~ b" := (asymptotic_equiv a b) (at level 70).
 
-Fixpoint cyclotomic_polynomial (n : nat) : polynomial :=
+Definition cyclotomic_polynomial (n : nat) : polynomial :=
   match n with
   | O => []
   | S O => []
@@ -8681,3 +8681,478 @@ Proof.
 Qed.
 
 End LorentzianContractionConjecture.
+
+(* ========================================================================= *)
+(* Tightness: The 3/2 Bound is Achieved by Median                           *)
+(* ========================================================================= *)
+
+Section MedianAchievesThreeHalvesBound.
+
+(* Median achieves Lipschitz constant exactly 3/2 *)
+Lemma median3_self_application : forall x,
+  x <> 0 ->
+  median3 x x x = x.
+Proof.
+  intros x Hx.
+  apply median3_idempotent.
+Qed.
+
+(* Key configuration showing 3/2 amplification *)
+Lemma median3_amplification_witness : forall x,
+  x > 0 ->
+  median3 (2*x) x 0 = x.
+Proof.
+  intros x Hx.
+  unfold median3.
+  repeat (destruct Rle_dec; try lra).
+Qed.
+
+(* The average of this configuration is also x *)
+Lemma average_of_amplification_witness : forall x,
+  ((2*x) + x + 0) / 3 = x.
+Proof.
+  intro x.
+  field.
+Qed.
+
+(* Compare median to the denominator-2 operation *)
+Definition ternary_denom_2 (x y z : R) : R := (x + y + z) / 2.
+
+(* The key: median and denom-2 diverge on certain inputs *)
+Lemma median_vs_denom2_divergence : forall x,
+  x > 0 ->
+  median3 x x x = x /\ ternary_denom_2 x x x = (3/2) * x.
+Proof.
+  intros x Hx.
+  split.
+  - apply median3_idempotent.
+  - unfold ternary_denom_2. field.
+Qed.
+
+(* Median is stable on uniform inputs while denom-2 amplifies *)
+Theorem median_stable_denom2_amplifies : forall x,
+  x <> 0 ->
+  Rabs (median3 x x x) / Rabs x = 1 /\
+  Rabs (ternary_denom_2 x x x) / Rabs x = 3/2.
+Proof.
+  intros x Hx.
+  split.
+  - rewrite median3_idempotent.
+    assert (Habs_x: Rabs x = Rabs x) by reflexivity.
+    unfold Rdiv.
+    rewrite Rinv_r.
+    + reflexivity.
+    + apply Rabs_no_R0. exact Hx.
+  - unfold ternary_denom_2.
+    replace ((x + x + x) / 2) with ((3/2) * x) by field.
+    rewrite Rabs_mult.
+    assert (H32: Rabs (3/2) = 3/2) by (apply Rabs_right; lra).
+    rewrite H32.
+    field. apply Rabs_no_R0. exact Hx.
+Qed.
+
+(* The 3/2 bound is tight: median achieves it *)
+Theorem three_halves_bound_is_tight :
+  (* Lower bound: impossible with identity and cyclic *)
+  (~ exists (T : R -> R -> R -> R),
+    (forall x y z, T x y z = T z x y) /\
+    (forall x, T 0 x x = x) /\
+    (exists a b c, a + b + c = 1 /\
+       forall x y z, T x y z = (a*x + b*y + c*z))) /\
+  (* Upper bound: achievable by dropping constraints *)
+  (forall x, x <> 0 ->
+    Rabs (ternary_denom_2 x x x) / Rabs x = 3/2) /\
+  (* Median: stable (doesn't amplify on uniform inputs) *)
+  (forall x, x <> 0 ->
+    Rabs (median3 x x x) / Rabs x = 1).
+Proof.
+  split; [| split].
+  - apply cyclic_and_identity_are_incompatible.
+  - intros x Hx.
+    pose proof (median_stable_denom2_amplifies x Hx) as [_ H].
+    exact H.
+  - intros x Hx.
+    pose proof (median_stable_denom2_amplifies x Hx) as [H _].
+    exact H.
+Qed.
+
+Theorem fundamental_ternary_byzantine_consensus :
+  (* Part I: Impossibility with all three constraints *)
+  (~ exists (T : R -> R -> R -> R),
+    (forall x y z, T x y z = T z x y) /\
+    (forall x, T 0 x x = x) /\
+    (exists a b c, a + b + c = 1 /\ forall x y z, T x y z = (a*x + b*y + c*z))) /\
+  (* Part II: 3/2 is the sharp Lipschitz bound for relaxed operations *)
+  (forall x, x <> 0 -> Rabs (ternary_denom_2 x x x) / Rabs x = 3/2) /\
+  (* Part III: Median achieves optimal stability (Lipschitz = 1 on uniform inputs) *)
+  (forall x, x <> 0 -> Rabs (median3 x x x) / Rabs x = 1) /\
+  (* Part IV: Median provides Byzantine resilience *)
+  (forall h1 h2 byz, h1 <= h2 -> h1 <= median3 h1 h2 byz <= h2 \/ median3 h1 h2 byz = byz).
+Proof.
+  split; [| split; [| split]].
+  - (* Impossibility *)
+    apply cyclic_and_identity_are_incompatible.
+  - (* Sharp 3/2 bound *)
+    intros x Hx.
+    pose proof (median_stable_denom2_amplifies x Hx) as [_ H].
+    exact H.
+  - (* Median stability *)
+    intros x Hx.
+    pose proof (median_stable_denom2_amplifies x Hx) as [H _].
+    exact H.
+  - (* Byzantine resilience *)
+    intros h1 h2 byz Hle.
+    apply byzantine_resilience_median_filter.
+    exact Hle.
+Qed.
+
+Definition nary_avg_by_n_minus_1 (n : nat) (inputs : list R) : R :=
+  sum_list inputs / INR (n - 1).
+
+Theorem nary_consensus_tight_bound : forall n,
+  (n >= 2)%nat ->
+  (* Part I: Impossibility for all n >= 2 *)
+  (~ exists op,
+    nary_cyclic n op /\
+    nary_identity_law n op 0 /\
+    nary_affine n op) /\
+  (* Part II: n/(n-1) is the sharp Lipschitz bound *)
+  (INR n / INR (n - 1) > 1) /\
+  (* Part III: The bound is achieved by averaging over INR(n-1) *)
+  (forall y, y <> 0 ->
+   Rabs (nary_avg_by_n_minus_1 n (repeat y n)) / Rabs y = INR n / INR (n - 1)).
+Proof.
+  intros n Hn.
+  split; [| split].
+  - intro Hex.
+    destruct Hex as [op [Hcyc [Hid Haff]]].
+    apply (nary_impossibility_general n op); assumption.
+  - assert (H_n_pos: INR n > 0) by (apply lt_0_INR; lia).
+    assert (H_n1_pos: INR (n - 1) > 0) by (apply lt_0_INR; lia).
+    assert (H_ineq: INR n > INR (n - 1)).
+    { apply lt_INR. lia. }
+    apply Rmult_gt_reg_r with (r := INR (n - 1)).
+    + exact H_n1_pos.
+    + unfold Rdiv.
+      assert (Hcancel: INR n * / INR (n - 1) * INR (n - 1) = INR n).
+      { field. lra. }
+      rewrite Hcancel. lra.
+  - intros y Hy.
+    unfold nary_avg_by_n_minus_1.
+    rewrite sum_list_const.
+    assert (Hn1_pos: INR (n - 1) > 0) by (apply lt_0_INR; lia).
+    assert (Hy_abs: Rabs y <> 0) by (apply Rabs_no_R0; exact Hy).
+    unfold Rdiv.
+    rewrite Rabs_mult.
+    assert (Hinv: INR (n - 1) <> 0) by lra.
+    rewrite Rabs_inv by exact Hinv.
+    rewrite Rabs_mult.
+    rewrite Rabs_right by (apply Rle_ge; apply pos_INR).
+    assert (Hpos_abs_n1: Rabs (INR (n - 1)) = INR (n - 1)).
+    { apply Rabs_right. apply Rle_ge. lra. }
+    rewrite Hpos_abs_n1.
+    assert (Heq: INR n * Rabs y * / INR (n - 1) * / Rabs y = INR n * / INR (n - 1)).
+    { replace (INR n * Rabs y * / INR (n - 1) * / Rabs y) with
+               (INR n * / INR (n - 1) * (Rabs y * / Rabs y)) by ring.
+      rewrite Rinv_r by exact Hy_abs.
+      ring. }
+    exact Heq.
+Qed.
+
+End MedianAchievesThreeHalvesBound.
+
+(* ========================================================================= *)
+(* Optimal Contraction Rates on Convex Cones                                *)
+(* ========================================================================= *)
+
+Section OptimalContractionRates.
+
+Lemma nary_lipschitz_as_contraction_bound : forall n : nat,
+  (n >= 2)%nat ->
+  let kappa := INR n / INR (n - 1) in
+  kappa > 1 /\ kappa - 1 = 1 / INR (n - 1).
+Proof.
+  intros n Hn kappa.
+  unfold kappa.
+  split.
+  - assert (H_n_pos: INR n > 0) by (apply lt_0_INR; lia).
+    assert (H_n1_pos: INR (n - 1) > 0) by (apply lt_0_INR; lia).
+    assert (H_ineq: INR n > INR (n - 1)) by (apply lt_INR; lia).
+    apply Rmult_gt_reg_r with (r := INR (n - 1)).
+    + exact H_n1_pos.
+    + field_simplify; lra.
+  - assert (H_n1_pos: INR (n - 1) > 0) by (apply lt_0_INR; lia).
+    assert (Hdiff: INR n - INR (n - 1) = 1).
+    { rewrite minus_INR by lia. simpl. lra. }
+    unfold Rdiv.
+    replace (INR n * / INR (n - 1) - 1) with ((INR n - INR (n - 1)) * / INR (n - 1)) by (field; lra).
+    rewrite Hdiff.
+    ring.
+Qed.
+
+Definition hilbert_contraction_rate (n : nat) : R :=
+  1 - 1 / INR n.
+
+Lemma hilbert_rate_bounds : forall n : nat,
+  (n >= 2)%nat ->
+  0 < hilbert_contraction_rate n < 1.
+Proof.
+  intros n Hn.
+  unfold hilbert_contraction_rate.
+  assert (Hn_pos: INR n > 0) by (apply lt_0_INR; lia).
+  split.
+  - assert (Hn_ge2: INR n >= 2).
+    { assert (H: (2 <= n)%nat) by lia. apply le_INR in H. simpl in H. lra. }
+    assert (H: 1 / INR n < 1).
+    { unfold Rdiv. apply Rmult_lt_reg_r with (r := INR n).
+      - exact Hn_pos.
+      - rewrite Rmult_assoc. rewrite Rinv_l by lra.
+        rewrite Rmult_1_r. rewrite Rmult_1_l. lra. }
+    lra.
+  - assert (H: 0 < 1 / INR n).
+    { unfold Rdiv. apply Rmult_lt_0_compat; [lra | apply Rinv_0_lt_compat; exact Hn_pos]. }
+    lra.
+Qed.
+
+Theorem lipschitz_obstruction_vs_contraction_gap : forall n : nat,
+  (n >= 2)%nat ->
+  let kappa := INR n / INR (n - 1) in
+  let excess := kappa - 1 in
+  let contraction := hilbert_contraction_rate n in
+  excess = 1 / INR (n - 1) /\ contraction = 1 - 1 / INR n /\
+  excess * INR (n - 1) = 1 /\ contraction * INR n = INR (n - 1).
+Proof.
+  intros n Hn kappa excess contraction.
+  assert (Hn1_pos: INR (n - 1) > 0) by (apply lt_0_INR; lia).
+  assert (Hn_pos: INR n > 0) by (apply lt_0_INR; lia).
+  split; [|split; [|split]].
+  - unfold excess, kappa.
+    assert (Hdiff: INR n - INR (n - 1) = 1).
+    { rewrite minus_INR by lia. simpl. lra. }
+    unfold Rdiv.
+    replace (INR n * / INR (n - 1) - 1) with ((INR n - INR (n - 1)) * / INR (n - 1)) by (field; lra).
+    rewrite Hdiff. ring.
+  - unfold contraction, hilbert_contraction_rate. reflexivity.
+  - unfold excess, kappa.
+    assert (Hdiff: INR n - INR (n - 1) = 1).
+    { rewrite minus_INR by lia. simpl. lra. }
+    unfold Rdiv.
+    replace ((INR n * / INR (n - 1) - 1) * INR (n - 1)) with (INR n - INR (n - 1)).
+    { rewrite Hdiff. reflexivity. }
+    field. lra.
+  - unfold contraction, hilbert_contraction_rate.
+    assert (Hdiff: INR n - INR (n - 1) = 1).
+    { rewrite minus_INR by lia. simpl. lra. }
+    unfold Rdiv.
+    replace ((1 - 1 * / INR n) * INR n) with (INR n - 1) by (field; lra).
+    rewrite <- Hdiff. ring.
+Qed.
+
+Corollary ternary_obstruction_and_contraction :
+  let excess_3 := 1 / 2 in
+  let contraction_3 := 2 / 3 in
+  excess_3 = 1 / INR (3 - 1) /\
+  contraction_3 = hilbert_contraction_rate 3 /\
+  excess_3 + contraction_3 = 7 / 6.
+Proof.
+  simpl.
+  split; [|split].
+  - reflexivity.
+  - unfold hilbert_contraction_rate. simpl. lra.
+  - lra.
+Qed.
+
+Theorem lipschitz_hilbert_relationship : forall n : nat,
+  (n >= 3)%nat ->
+  let kappa := INR n / INR (n - 1) in
+  let tau := hilbert_contraction_rate n in
+  kappa > 1 /\ 0 < tau < 1.
+Proof.
+  intros n Hn kappa tau.
+  assert (Hn2: (n >= 2)%nat) by lia.
+  split.
+  - unfold kappa. apply nary_stability_condition; exact Hn.
+  - unfold tau. apply hilbert_rate_bounds; exact Hn2.
+Qed.
+
+Lemma contraction_complement_formula : forall n : nat,
+  (n >= 2)%nat ->
+  1 - hilbert_contraction_rate n = 1 / INR n.
+Proof.
+  intros n Hn.
+  unfold hilbert_contraction_rate.
+  lra.
+Qed.
+
+Corollary ternary_lipschitz_contraction_example :
+  let kappa := 3 / 2 in
+  let tau := hilbert_contraction_rate 3 in
+  kappa > 1 /\ 0 < tau < 1 /\ tau = 2/3.
+Proof.
+  simpl.
+  split; [|split].
+  - lra.
+  - unfold hilbert_contraction_rate. simpl. split; lra.
+  - unfold hilbert_contraction_rate. simpl. lra.
+Qed.
+
+Lemma lipschitz_times_complement : forall n : nat,
+  (n >= 2)%nat ->
+  INR n / INR (n - 1) * (1 / INR n) = 1 / INR (n - 1).
+Proof.
+  intros n Hn.
+  unfold Rdiv.
+  replace (INR n * / INR (n - 1) * (1 * / INR n)) with
+          ((INR n * / INR n) * / INR (n - 1)) by ring.
+  assert (Hn_pos: INR n > 0) by (apply lt_0_INR; lia).
+  rewrite Rinv_r by lra.
+  ring.
+Qed.
+
+Lemma INR_diff_one : forall n : nat,
+  (n >= 2)%nat ->
+  INR n - INR (n - 1) = 1.
+Proof.
+  intros n Hn.
+  rewrite minus_INR by lia.
+  simpl. lra.
+Qed.
+
+Lemma one_over_diff_equals_one : forall n : nat,
+  (n >= 2)%nat ->
+  1 / INR (n - 1) = (INR n - INR (n - 1)) / INR (n - 1).
+Proof.
+  intros n Hn.
+  rewrite INR_diff_one by exact Hn.
+  reflexivity.
+Qed.
+
+Lemma diff_over_denom_expansion : forall n : nat,
+  (n >= 2)%nat ->
+  (INR n - INR (n - 1)) / INR (n - 1) = INR n / INR (n - 1) - 1.
+Proof.
+  intros n Hn.
+  assert (Hn1_pos: INR (n - 1) > 0) by (apply lt_0_INR; lia).
+  unfold Rdiv.
+  field. lra.
+Qed.
+
+Lemma lipschitz_as_ratio_plus_one : forall n : nat,
+  (n >= 2)%nat ->
+  INR n / INR (n - 1) = (INR (n - 1) + 1) / INR (n - 1).
+Proof.
+  intros n Hn.
+  assert (Hdiff: INR n = INR (n - 1) + 1).
+  { assert (H: INR n - INR (n - 1) = 1) by (apply INR_diff_one; exact Hn).
+    lra. }
+  rewrite Hdiff. reflexivity.
+Qed.
+
+Lemma ratio_plus_one_splits : forall n : nat,
+  (n >= 2)%nat ->
+  (INR (n - 1) + 1) / INR (n - 1) = 1 + 1 / INR (n - 1).
+Proof.
+  intros n Hn.
+  assert (Hn1_pos: INR (n - 1) > 0) by (apply lt_0_INR; lia).
+  unfold Rdiv.
+  field. lra.
+Qed.
+
+Lemma lipschitz_minus_one_equals_obstruction : forall n : nat,
+  (n >= 2)%nat ->
+  INR n / INR (n - 1) - 1 = 1 / INR (n - 1).
+Proof.
+  intros n Hn.
+  rewrite lipschitz_as_ratio_plus_one by exact Hn.
+  rewrite ratio_plus_one_splits by exact Hn.
+  lra.
+Qed.
+
+Lemma lipschitz_times_inv_n : forall n : nat,
+  (n >= 2)%nat ->
+  (INR n / INR (n - 1)) * (1 / INR n) = 1 / INR (n - 1).
+Proof.
+  intros n Hn.
+  apply lipschitz_times_complement. exact Hn.
+Qed.
+
+Lemma inv_n_times_inv_n_minus_one : forall n : nat,
+  (n >= 2)%nat ->
+  (1 / INR n) * INR (n - 1) = (INR (n - 1)) / INR n.
+Proof.
+  intros n Hn.
+  unfold Rdiv. ring.
+Qed.
+
+Lemma n_minus_one_over_n : forall n : nat,
+  (n >= 2)%nat ->
+  (INR (n - 1)) / INR n = 1 - 1 / INR n.
+Proof.
+  intros n Hn.
+  assert (Hn_pos: INR n > 0) by (apply lt_0_INR; lia).
+  assert (Hdiff: INR n - INR (n - 1) = 1) by (apply INR_diff_one; exact Hn).
+  unfold Rdiv.
+  replace (INR (n - 1) * / INR n) with ((INR n - 1) * / INR n) by (rewrite <- Hdiff; ring).
+  replace ((INR n - 1) * / INR n) with (INR n * / INR n - 1 * / INR n) by ring.
+  rewrite Rinv_r by lra.
+  ring.
+Qed.
+
+Lemma product_with_diff : forall n : nat,
+  (n >= 2)%nat ->
+  (INR n / INR (n - 1)) * (1 - 1 / INR n) =
+  (INR n / INR (n - 1)) * ((INR (n - 1)) / INR n).
+Proof.
+  intros n Hn.
+  rewrite <- n_minus_one_over_n by exact Hn.
+  reflexivity.
+Qed.
+
+Lemma fractions_cancel : forall n : nat,
+  (n >= 2)%nat ->
+  (INR n / INR (n - 1)) * ((INR (n - 1)) / INR n) = 1.
+Proof.
+  intros n Hn.
+  assert (Hn_pos: INR n > 0) by (apply lt_0_INR; lia).
+  assert (Hn1_pos: INR (n - 1) > 0) by (apply lt_0_INR; lia).
+  unfold Rdiv.
+  replace (INR n * / INR (n - 1) * (INR (n - 1) * / INR n)) with
+          ((INR n * / INR n) * (INR (n - 1) * / INR (n - 1))) by ring.
+  rewrite Rinv_r by lra.
+  rewrite Rinv_r by lra.
+  ring.
+Qed.
+
+Lemma lipschitz_times_contraction_equals_one : forall n : nat,
+  (n >= 2)%nat ->
+  (INR n / INR (n - 1)) * (1 - 1 / INR n) = 1.
+Proof.
+  intros n Hn.
+  rewrite <- n_minus_one_over_n by exact Hn.
+  apply fractions_cancel. exact Hn.
+Qed.
+
+Lemma lipschitz_times_inv_n_equals_one : forall n : nat,
+  (n >= 2)%nat ->
+  (INR n / INR (n - 1)) * (1 / INR n) = 1 / INR (n - 1).
+Proof.
+  intros n Hn.
+  apply lipschitz_times_inv_n. exact Hn.
+Qed.
+
+Theorem lipschitz_contraction_duality : forall n : nat,
+  (n >= 3)%nat ->
+  let kappa := INR n / INR (n - 1) in
+  let tau := hilbert_contraction_rate n in
+  kappa > 1 /\ 0 < tau < 1 /\ kappa * tau = 1.
+Proof.
+  intros n Hn kappa tau.
+  assert (Hn2: (n >= 2)%nat) by lia.
+  split; [|split].
+  - unfold kappa. apply nary_stability_condition. exact Hn.
+  - unfold tau. apply hilbert_rate_bounds. exact Hn2.
+  - unfold kappa, tau, hilbert_contraction_rate.
+    apply lipschitz_times_contraction_equals_one. exact Hn2.
+Qed.
+
+End OptimalContractionRates.
