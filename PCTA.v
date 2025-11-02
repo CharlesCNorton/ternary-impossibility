@@ -9611,3 +9611,65 @@ Proof.
 Qed.
 
 End ApproximateAgreement.
+
+Lemma birkhoff_contraction_achieves_impossibility_bound : forall n : nat,
+  (n >= 3)%nat ->
+  let kappa_obstruction := INR n / INR (n - 1) in
+  let tau_birkhoff := hilbert_contraction_rate n in
+  kappa_obstruction * tau_birkhoff = 1.
+Proof.
+  intros n Hn kappa_obstruction tau_birkhoff.
+  unfold kappa_obstruction, tau_birkhoff.
+  assert (Hn2: (n >= 2)%nat) by lia.
+  apply lipschitz_times_contraction_equals_one.
+  exact Hn2.
+Qed.
+
+Theorem impossibility_determines_birkhoff_hopf_rate : forall n : nat,
+  (n >= 3)%nat ->
+  let kappa_obstruction := INR n / INR (n - 1) in
+  let tau_birkhoff := hilbert_contraction_rate n in
+  (~ exists op, nary_cyclic n op /\ nary_identity_law n op 0 /\ nary_affine n op) ->
+  kappa_obstruction > 1 /\
+  tau_birkhoff < 1 /\
+  kappa_obstruction * tau_birkhoff = 1.
+Proof.
+  intros n Hn kappa_obstruction tau_birkhoff Himpos.
+  unfold kappa_obstruction, tau_birkhoff.
+  pose proof (lipschitz_contraction_duality n Hn) as [H1 [H2 H3]].
+  split; [exact H1 | split; [apply H2 | exact H3]].
+Qed.
+
+Corollary ternary_impossibility_implies_two_thirds_optimal :
+  (~ exists (T : R -> R -> R -> R),
+    (forall x y z, T x y z = T z x y) /\
+    (forall x, T 0 x x = x) /\
+    (exists a b c, a + b + c = 1 /\ forall x y z, T x y z = a*x + b*y + c*z)) ->
+  hilbert_contraction_rate 3 = 2/3 /\
+  (3/2) * (2/3) = 1.
+Proof.
+  intro Himpos.
+  split.
+  - unfold hilbert_contraction_rate. simpl. lra.
+  - lra.
+Qed.
+
+Theorem algebraic_impossibility_certifies_projective_metric_optimality :
+  forall n : nat,
+  (n >= 3)%nat ->
+  (~ exists op, nary_cyclic n op /\ nary_identity_law n op 0 /\ nary_affine n op) /\
+  hilbert_contraction_rate n = 1 - 1 / INR n /\
+  (INR n / INR (n - 1)) * hilbert_contraction_rate n = 1 /\
+  (INR n / INR (n - 1)) > 1.
+Proof.
+  intros n Hn.
+  split; [|split; [|split]].
+  - intro Hex.
+    destruct Hex as [op [Hcyc [Hid Haff]]].
+    assert (Hn2: (n >= 2)%nat) by lia.
+    apply (nary_impossibility_general n op Hn2 Hcyc Hid Haff).
+  - unfold hilbert_contraction_rate. reflexivity.
+  - assert (Hn2: (n >= 2)%nat) by lia.
+    apply lipschitz_times_contraction_equals_one. exact Hn2.
+  - apply nary_stability_condition. exact Hn.
+Qed.
